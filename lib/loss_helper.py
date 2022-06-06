@@ -242,15 +242,8 @@ def compute_reference_loss(data_dict, config):
                     pred_size_class[i], pred_size_residual[i])
         pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
         '''
-        all_pred_bbox_batch = data_dict['outputs']['box_corners']
-        # find box corners for selected proposal
-        pred = torch.argmax(cluster_preds, -1)
-        pred_bbox_batch = torch.zeros(batch_size,8,3)
-        for j in range(0,batch_size):
-            pred_bbox_batch[j] = all_pred_bbox_batch[j,pred[j]]
-        pred_bbox_batch = pred_bbox_batch.detach().numpy()
-        print(pred_bbox_batch.shape)
-        print(gt_bbox_batch.shape)
+        pred_bbox_batch = data_dict['outputs']['box_corners'][i]
+        pred_bbox_batch = pred_bbox_batch.detach().cpu().numpy()
         ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
         labels[i, ious.argmax()] = 1 # treat the bbox with highest iou score as the gt
 
@@ -636,6 +629,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     
     # 3DETR Obj detection loss:
     obj_loss, loss_dict = forward(data_dict)
+    print(obj_loss)
     
     if detection:
         data_dict['center_loss'] = loss_dict['center_loss']
@@ -707,5 +701,6 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     loss *= 10 # amplify
 
     data_dict['loss'] = loss
+    print(loss)
 
     return loss, data_dict
