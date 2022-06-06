@@ -210,6 +210,7 @@ def compute_reference_loss(data_dict, config):
 
     # predicted bbox
     pred_ref = data_dict['cluster_ref'].detach().cpu().numpy() # (B,)
+    '''
     pred_center = data_dict['center'].detach().cpu().numpy() # (B,K,3)
     pred_heading_class = torch.argmax(data_dict['heading_scores'], -1) # B,num_proposal
     pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
@@ -219,7 +220,7 @@ def compute_reference_loss(data_dict, config):
     pred_size_residual = torch.gather(data_dict['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
     pred_size_class = pred_size_class.detach().cpu().numpy()
     pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal,3
-
+    '''
     # ground truth bbox
     gt_center = data_dict['ref_center_label'].cpu().numpy() # (B,3)
     gt_heading_class = data_dict['ref_heading_class_label'].cpu().numpy() # B
@@ -236,9 +237,20 @@ def compute_reference_loss(data_dict, config):
     labels = np.zeros((batch_size, num_proposals))
     for i in range(pred_ref.shape[0]):
         # convert the bbox parameters to bbox corners
+        '''
         pred_obb_batch = config.param2obb_batch(pred_center[i, :, 0:3], pred_heading_class[i], pred_heading_residual[i],
                     pred_size_class[i], pred_size_residual[i])
         pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
+        '''
+        all_pred_bbox_batch = data_dict['outputs']['box_corners']
+        # find box corners for selected proposal
+        pred = torch.argmax(cluster_preds, -1)
+        pred_bbox_batch = torch.zeros(batch_size,8,3)
+        for j in range(0,batch_size):
+            pred_bbox_batch[j] = all_pred_bbox_batch[j,pred[j]]
+        pred_bbox_batch = pred_bbox_batch.detach().numpy()
+        print(pred_bbox_batch.shape)
+        print(gt_bbox_batch.shape)
         ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
         labels[i, ious.argmax()] = 1 # treat the bbox with highest iou score as the gt
 
