@@ -85,7 +85,7 @@ BEST_REPORT_TEMPLATE = """
 """
 
 class Solver():
-    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
+    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=1, 
     detection=True, reference=True, use_lang_classifier=True,
     lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None):
 
@@ -185,6 +185,9 @@ class Solver():
         for epoch_id in range(epoch):
             try:
                 self._log("epoch {} starting...".format(epoch_id + 1))
+                
+                if epoch_id>0:
+                    self._epoch_report(epoch_id)
 
                 # feed 
                 self._feed(self.dataloader["train"], "train", epoch_id)
