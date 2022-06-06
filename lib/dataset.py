@@ -19,6 +19,7 @@ from lib.config import CONF
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
 from transformers import AutoTokenizer, BertTokenizer
+from DETR.utils.pc_util import scale_points, shift_scale_points
 
 # data setting
 DC = ScannetDatasetConfig()
@@ -118,6 +119,10 @@ class ScannetReferenceDataset(Dataset):
         angle_residuals = np.zeros((MAX_NUM_OBJ,))
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
+        # Addition of 3DETR:
+        raw_sizes = np.zeros((MAX_NUM_OBJ, 3), dtype=np.float32)
+        raw_angles = np.zeros((MAX_NUM_OBJ,), dtype=np.float32)
+        # Vote Net Labels
         ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
         ref_center_label = np.zeros(3) # bbox center for reference target
         ref_heading_class_label = 0
@@ -166,9 +171,36 @@ class ScannetReferenceDataset(Dataset):
                 # Translation
                 point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
                 
+            # 3DETR addition:
+            raw_sizes = target_bboxes[:, 3:6]
             # dims added:
             point_cloud_dims_min = point_cloud.min(axis=0)[:3]
             point_cloud_dims_max = point_cloud.max(axis=0)[:3]
+            
+            box_centers = target_bboxes.astype(np.float32)[:, 0:3]
+            box_centers_normalized = shift_scale_points(
+                    box_centers[None, ...],
+                    src_range=[
+                            point_cloud_dims_min[None, ...],
+                            point_cloud_dims_max[None, ...],
+                            ],
+                    dst_range=self.center_normalizing_range,
+            )
+            box_centers_normalized = box_centers_normalized.squeeze(0)
+            box_centers_normalized = box_centers_normalized * target_bboxes_mask[..., None]
+            mult_factor = point_cloud_dims_max - point_cloud_dims_min
+            box_sizes_normalized = scale_points(
+                    raw_sizes.astype(np.float32)[None, ...],
+                    mult_factor=1.0 / mult_factor[None, ...],
+            )
+            box_sizes_normalized = box_sizes_normalized.squeeze(0)
+
+            box_corners = self.dataset_config.box_parametrization_to_corners_np(
+                    box_centers[None, ...],
+                    raw_sizes.astype(np.float32)[None, ...],
+                    raw_angles.astype(np.float32)[None, ...],
+            )
+            box_corners = box_corners.squeeze(0)
 
             # compute votes *AFTER* augmentation
             # generate votes
@@ -247,8 +279,19 @@ class ScannetReferenceDataset(Dataset):
         data_dict["unique_multiple"] = np.array(self.unique_multiple_lookup[scene_id][str(object_id)][ann_id]).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
+        # 3DETR addition:
         data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
         data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
+        data_dict["gt_box_corners"] = box_corners.astype(np.float32)
+        data_dict["gt_box_centers"] = box_centers.astype(np.float32)
+        data_dict["gt_box_centers_normalized"] = box_centers_normalized.astype(np.float32)
+        data_dict["gt_angle_class_label"] = angle_classes.astype(np.int64)
+        data_dict["gt_angle_residual_label"] = angle_residuals.astype(np.float32)
+        data_dict["gt_box_sem_cls_label"] = target_bboxes_semcls.astype(np.int64)
+        data_dict["gt_box_present"] = target_bboxes_mask.astype(np.float32)
+        data_dict["gt_box_sizes"] = raw_sizes.astype(np.float32)
+        data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
+        data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
 
         return data_dict
     
