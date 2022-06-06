@@ -58,10 +58,10 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     batch_size, num_words, _ = data_dict["lang_feat"].shape
     #batch_size, num_words = data_dict["lang_inputs"].shape
 
-
+    '''
     objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
     objectness_labels_batch = data_dict['objectness_label'].long()
-
+    
     if post_processing:
         _ = parse_predictions(data_dict, post_processing)
         nms_masks = torch.LongTensor(data_dict['pred_mask']).cuda()
@@ -197,13 +197,13 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         # construct the others mask
         flag = 1 if data_dict["object_cat"][i] == 17 else 0
         others.append(flag)
-
+    '''
     # lang
     if reference and use_lang_classifier:
         data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == data_dict["object_cat"]).float().mean()
     else:
         data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
-
+    '''
     # store
     data_dict["ref_iou"] = ious
     data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
@@ -223,5 +223,5 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1) # (B,K)
     sem_match = (sem_cls_label == sem_cls_pred).float()
     data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
-
+    '''
     return data_dict

@@ -32,7 +32,7 @@ class RefNet(nn.Module):
         self.use_lang_classifier = use_lang_classifier
         self.use_bidir = use_bidir      
         self.no_reference = no_reference
-
+        '''
         # --------- Object Detection ------------
         #self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
         # --------- PROPOSAL GENERATION ---------
@@ -44,7 +44,7 @@ class RefNet(nn.Module):
 
         # Vote aggregation and object proposal
         self.proposal = ProposalModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling)
-
+        '''
         if not no_reference:
             # --------- LANGUAGE ENCODING ---------
             # Encode the input descriptions into vectors
@@ -53,7 +53,7 @@ class RefNet(nn.Module):
             #self.bert = BERTModule(num_class, use_lang_classifier, hidden_size)
             # --------- PROPOSAL MATCHING ---------
             # Match the generated proposals and select the most confident ones
-            self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
+            #self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
 
     def forward(self, data_dict):
         """ Forward pass of the network
@@ -79,7 +79,7 @@ class RefNet(nn.Module):
         #           DETECTION BRANCH          #
         #                                     #
         #######################################
-
+        '''
         # --------- 3DETR ----------------
         #data_dict = self.Object_Detection(data_dict)
         
@@ -102,7 +102,7 @@ class RefNet(nn.Module):
         # --------- PROPOSAL GENERATION ---------
         data_dict = self.proposal(xyz, features, data_dict)
         
-
+        '''
         if not self.no_reference:
             #######################################
             #                                     #
@@ -121,6 +121,6 @@ class RefNet(nn.Module):
             #######################################
 
             # --------- PROPOSAL MATCHING ---------
-            data_dict = self.match(data_dict)
+            #data_dict = self.match(data_dict)
 
         return data_dict

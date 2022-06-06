@@ -171,6 +171,7 @@ class ScannetReferenceDataset(Dataset):
                 # Translation
                 point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
                 
+            '''
             # 3DETR addition:
             raw_sizes = target_bboxes[:, 3:6]
             # dims added:
@@ -201,7 +202,7 @@ class ScannetReferenceDataset(Dataset):
                     raw_angles.astype(np.float32)[None, ...],
             )
             box_corners = box_corners.squeeze(0)
-
+            '''
             # compute votes *AFTER* augmentation
             # generate votes
             # Note: since there's no map between bbox instance labels and
@@ -280,6 +281,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
         # 3DETR addition:
+        '''
         data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
         data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
         data_dict["gt_box_corners"] = box_corners.astype(np.float32)
@@ -292,7 +294,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["gt_box_sizes"] = raw_sizes.astype(np.float32)
         data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
         data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
-
+        '''
         return data_dict
     
     def _get_raw2label(self):
