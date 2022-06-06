@@ -331,7 +331,7 @@ class Matcher(nn.Module):
         }
         
 
-def loss_sem_cls(self, outputs, data_dict, assignments):
+def loss_sem_cls(outputs, data_dict, assignments):
 
         # # Not vectorized version
         # pred_logits = outputs["sem_cls_logits"]
@@ -368,7 +368,7 @@ def loss_sem_cls(self, outputs, data_dict, assignments):
 
         return {"loss_sem_cls": loss}
 
-def loss_angle(self, outputs, data_dict, assignments):
+def loss_angle(outputs, data_dict, assignments):
     angle_logits = outputs["angle_logits"]
     angle_residual = outputs["angle_residual_normalized"]
 
@@ -436,7 +436,7 @@ def loss_angle(self, outputs, data_dict, assignments):
         angle_reg_loss = torch.zeros(1, device=angle_logits.device).squeeze()
     return {"loss_angle_cls": angle_cls_loss, "loss_angle_reg": angle_reg_loss}
 
-def loss_center(self, outputs, data_dict, assignments):
+def loss_center(outputs, data_dict, assignments):
     center_dist = outputs["center_dist"]
     if data_dict["num_boxes_replica"] > 0:
 
@@ -462,7 +462,7 @@ def loss_center(self, outputs, data_dict, assignments):
 
     return {"loss_center": center_loss}
 
-def loss_giou(self, outputs, data_dict, assignments):
+def loss_giou(outputs, data_dict, assignments):
     gious_dist = 1 - outputs["gious"]
 
     # # Non vectorized version
@@ -486,7 +486,7 @@ def loss_giou(self, outputs, data_dict, assignments):
 
     return {"loss_giou": giou_loss}
 
-def loss_size(self, outputs, data_dict, assignments):
+def loss_size(outputs, data_dict, assignments):
     gt_box_sizes = data_dict["gt_box_sizes_normalized"]
     pred_box_sizes = outputs["size_normalized"]
 
@@ -527,16 +527,23 @@ def loss_size(self, outputs, data_dict, assignments):
         size_loss = torch.zeros(1, device=pred_box_sizes.device).squeeze()
     return {"loss_size": size_loss}
 
-# Define matcher:
-matcher = Matcher(0,0,0,0)
+# Define matcher and loss weights:
+matcher = Matcher(1,0,2,0)
+giou_loss_weight = 0
+sem_cls_loss_weight = 1
+no_object_loss_weight = 0.2
+angle_cls_loss_weight = 0.1
+angle_reg_loss_weight = 0.5
+center_loss_weight = 5.0
+size_loss_weight =  1.0
 
-def single_output_forward(self, outputs, data_dict):
+def single_output_forward(outputs, data_dict):
     gious = generalized_box3d_iou(
         outputs["box_corners"],
         data_dict["gt_box_corners"],
         data_dict["nactual_gt"],
         rotated_boxes=torch.any(data_dict["gt_box_angles"] > 0).item(),
-        needs_grad=(self.loss_weight_dict["loss_giou_weight"] > 0),
+        needs_grad=(giou_loss_weight > 0),
     )
 
     outputs["gious"] = gious
@@ -549,25 +556,18 @@ def single_output_forward(self, outputs, data_dict):
     losses = {}
 
     # change it --> not working yet
-    for k in self.loss_functions:
-        loss_wt_key = k + "_weight"
-        if (
-            loss_wt_key in self.loss_weight_dict
-            and self.loss_weight_dict[loss_wt_key] > 0
-        ) or loss_wt_key not in self.loss_weight_dict:
-            # only compute losses with loss_wt > 0
-            # certain losses like cardinality are only logged and have no loss weight
-            curr_loss = self.loss_functions[k](data_dict, data_dict, assignments)
-            losses.update(curr_loss)
+    losses['loss_center'] = loss_center(outputs, data_dict, assignments)
+    losses['loss_size'] = loss_size(outputs, data_dict, assignments)
+    losses['loss_giou'] = loss_giou(outputs, data_dict, assignments)
+    losses['loss_angle_cls'], losses['angle_reg_loss'] = loss_angle(outputs, data_dict, assignments)
+    losses['loss_sem_cls'] = loss_sem_cls(outputs, data_dict, assignments)
 
-    final_loss = 0
-    for k in self.loss_weight_dict:
-        if self.loss_weight_dict[k] > 0:
-            losses[k.replace("_weight", "")] *= self.loss_weight_dict[k]
-            final_loss += losses[k.replace("_weight", "")]
+    #losses = 
+    final_loss = giou_loss_weight*losses['loss_giou'] + sem_cls_loss_weight*losses['sem_cls_loss'] + angle_cls_loss_weight*losses['angle_cls_loss'] + angle_reg_loss_weight*losses['angle_reg_loss'] + center_loss_weight*losses['center_loss'] + size_loss_weight*losses['size_loss']
+
     return final_loss, losses
 
-def forward(self, data_dict):
+def forward(data_dict):
     nactual_gt = data_dict["gt_box_present"].sum(axis=1).long()
     num_boxes = torch.clamp(all_reduce_average(nactual_gt.sum()), min=1).item()
     data_dict["nactual_gt"] = nactual_gt
@@ -576,10 +576,10 @@ def forward(self, data_dict):
         "num_boxes_replica"
     ] = nactual_gt.sum().item()  # number of boxes on this worker for dist training
 
-    loss, loss_dict = self.single_output_forward(data_dict['outputs'], data_dict)    
+    loss, loss_dict = single_output_forward(data_dict['outputs'], data_dict)    
     if "aux_outputs" in data_dict:
         for k in range(len(data_dict["aux_outputs"])):
-            interm_loss, interm_loss_dict = self.single_output_forward(
+            interm_loss, interm_loss_dict = single_output_forward(
                 data_dict["aux_outputs"][k], data_dict
             )
 
@@ -600,7 +600,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         loss: pytorch scalar tensor
         data_dict: dict
     """
-
+    '''
     # Vote loss
     vote_loss = compute_vote_loss(data_dict)
 
@@ -619,7 +619,8 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + 0.1*size_cls_loss + size_reg_loss
     #center_loss, heading_cls_loss, heading_reg_loss, size_reg_loss, sem_cls_loss = compute_box_and_sem_cls_loss(data_dict, config)
     #box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + size_reg_loss
-
+    '''
+    
     # 3DETR Obj detection loss:
     obj_loss, loss_dict = forward(data_dict)
     
@@ -639,7 +640,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         data_dict['angle_reg_loss'] = torch.zeros(1)[0].cuda()
         data_dict['sem_cls_loss'] = torch.zeros(1)[0].cuda()
         data_dict['obj_loss'] = torch.zeros(1)[0].cuda()
-
+    '''
     if detection:
         data_dict['vote_loss'] = vote_loss
         data_dict['objectness_loss'] = objectness_loss
@@ -660,7 +661,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         data_dict['size_reg_loss'] = torch.zeros(1)[0].cuda()
         data_dict['sem_cls_loss'] = torch.zeros(1)[0].cuda()
         data_dict['box_loss'] = torch.zeros(1)[0].cuda()
-    
+    '''
     if reference:
         # Reference loss
         ref_loss, _, cluster_labels = compute_reference_loss(data_dict, config)
@@ -670,9 +671,10 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         # # Reference loss
         # ref_loss, _, cluster_labels = compute_reference_loss(data_dict, config)
         # data_dict["cluster_labels"] = cluster_labels
+        '''
         data_dict["cluster_labels"] = objectness_label.new_zeros(objectness_label.shape).cuda()
         data_dict["cluster_ref"] = objectness_label.new_zeros(objectness_label.shape).float().cuda()
-
+        '''
         # store
         data_dict["ref_loss"] = torch.zeros(1)[0].cuda()
     
@@ -682,13 +684,13 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         data_dict["lang_loss"] = torch.zeros(1)[0].cuda()
 
     # Final loss function
-    
+    '''
     loss = data_dict['vote_loss'] + 0.5*data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1*data_dict['sem_cls_loss'] \
         + 0.1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"]
     '''
-    loss = data_dict['obj_loss']  \
-        + 0.1*data_dict["lang_loss"]
-    '''
+    loss = 10*obj_loss \
+        + 0.1*data_dict["ref_loss"] + 1*data_dict["lang_loss"]
+    
     loss *= 10 # amplify
 
     data_dict['loss'] = loss

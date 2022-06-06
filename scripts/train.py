@@ -94,7 +94,7 @@ def get_model(args):
                 param.requires_grad = False
     
     # to CUDA
-    #os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    os.environ["CUDA_VISIBLE_DEVICES"]="2"
     model = model.cuda()
 
     return model

@@ -20,6 +20,7 @@ from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
 from transformers import AutoTokenizer, BertTokenizer
 from DETR.utils.pc_util import scale_points, shift_scale_points
+from DETR.datasets import build_dataset
 
 # data setting
 DC = ScannetDatasetConfig()
@@ -52,6 +53,11 @@ class ScannetReferenceDataset(Dataset):
         self.use_normal = use_normal        
         self.use_multiview = use_multiview
         self.augment = augment
+        self.center_normalizing_range = [
+            np.zeros((1, 3), dtype=np.float32),
+            np.ones((1, 3), dtype=np.float32),
+        ]
+        self.dataset_config = build_dataset("scannet")
 
         # load data
         self._load_data()

@@ -458,6 +458,7 @@ class Object_Detection(nn.Module):
         print(box_pred["box_corners"].size())
         '''
         # try to adapt output:
+        '''
         data_dict['objectness_scores'] = box_pred["objectness_prob"]
         data_dict['center'] = box_pred["center_normalized"]
         data_dict['heading_scores'] = box_pred["angle_logits"]
@@ -468,13 +469,17 @@ class Object_Detection(nn.Module):
         data_dict['size_residuals'] = box_pred["size_unnormalized"]
         data_dict['sem_cls_scores'] = box_pred["sem_cls_logits"] # maybe use sem_cls_logits
         data_dict['aggregated_vote_xyz'] = box_pred["center_offset"]
-
+        '''
+        data_dict['outputs'] = box_predictions['outputs']
+        data_dict['aux_outputs'] = box_predictions['aux_outputs']
         
+        # there might be no need for this linear layer
+        # definitely try also without it
         m = nn.Linear(256,128)
         m.cuda()
-        #box_features = box_features.reshape(box_features.shape[2],box_features.shape[1],box_features.shape[0]*box_features.shape[3])
         # final decoder layer output
         box_features = box_features[-1]
+        box_features = box_features.reshape(box_features.shape[1],box_features.shape[0],box_features.shape[2]) # (batch X num_queries X channels)
         data_dict["aggregated_vote_features"] = m(box_features)
 
         # look at box_predictions

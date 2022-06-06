@@ -43,6 +43,8 @@ class MatchModule(nn.Module):
         lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size, num_proposals, lang_size
 
         # fuse
+        print(lang_feat.shape)
+        print(features.shape)
         features = torch.cat([features, lang_feat], dim=-1) # batch_size, num_proposals, 128 + lang_size
         features = features.permute(0, 2, 1).contiguous() # batch_size, 128 + lang_size, num_proposals
 
