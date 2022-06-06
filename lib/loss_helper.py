@@ -18,11 +18,13 @@ import torch.nn.functional as F
 from DETR.utils.box_util import generalized_box3d_iou
 from scipy.optimize import linear_sum_assignment
 from DETR.utils.dist import all_reduce_average
+from DETR.datasets import build_dataset
 
 FAR_THRESHOLD = 0.6
 NEAR_THRESHOLD = 0.3
 GT_VOTE_FACTOR = 3 # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8] # put larger weights on positive objectness
+dataset_config = build_dataset("scannet")
 
 def compute_vote_loss(data_dict):
     """ Compute vote loss: Match predicted votes to GT votes.
@@ -332,7 +334,7 @@ class Matcher(nn.Module):
         
 
 def loss_sem_cls(outputs, data_dict, assignments):
-
+        semcls_percls_weights = torch.ones(dataset_config.num_semcls + 1)
         # # Not vectorized version
         # pred_logits = outputs["sem_cls_logits"]
         # assign = assignments["assignments"]
@@ -352,21 +354,21 @@ def loss_sem_cls(outputs, data_dict, assignments):
         # pred_logits = pred_logits.reshape(sem_cls_targets.shape[0], -1)
         # loss = F.cross_entropy(pred_logits, sem_cls_targets, self.semcls_percls_weights, reduction="mean")
 
-        pred_logits = outputs["sem_cls_logits"]
+        pred_logits = outputs["sem_cls_logits"].cpu()
         gt_box_label = torch.gather(
             data_dict["gt_box_sem_cls_label"], 1, assignments["per_prop_gt_inds"]
-        )
+        ).cpu()
         gt_box_label[assignments["proposal_matched_mask"].int() == 0] = (
             pred_logits.shape[-1] - 1
         )
         loss = F.cross_entropy(
             pred_logits.transpose(2, 1),
             gt_box_label,
-            self.semcls_percls_weights,
+            semcls_percls_weights,
             reduction="mean",
         )
 
-        return {"loss_sem_cls": loss}
+        return loss
 
 def loss_angle(outputs, data_dict, assignments):
     angle_logits = outputs["angle_logits"]
@@ -376,7 +378,7 @@ def loss_angle(outputs, data_dict, assignments):
         gt_angle_label = data_dict["gt_angle_class_label"]
         gt_angle_residual = data_dict["gt_angle_residual_label"]
         gt_angle_residual_normalized = gt_angle_residual / (
-            np.pi / self.dataset_config.num_angle_bin
+            np.pi / dataset_config.num_angle_bin
         )
 
         # # Non vectorized version
@@ -434,7 +436,7 @@ def loss_angle(outputs, data_dict, assignments):
     else:
         angle_cls_loss = torch.zeros(1, device=angle_logits.device).squeeze()
         angle_reg_loss = torch.zeros(1, device=angle_logits.device).squeeze()
-    return {"loss_angle_cls": angle_cls_loss, "loss_angle_reg": angle_reg_loss}
+    return angle_cls_loss, angle_reg_loss
 
 def loss_center(outputs, data_dict, assignments):
     center_dist = outputs["center_dist"]
@@ -460,7 +462,7 @@ def loss_center(outputs, data_dict, assignments):
     else:
         center_loss = torch.zeros(1, device=center_dist.device).squeeze()
 
-    return {"loss_center": center_loss}
+    return center_loss
 
 def loss_giou(outputs, data_dict, assignments):
     gious_dist = 1 - outputs["gious"]
@@ -484,7 +486,7 @@ def loss_giou(outputs, data_dict, assignments):
     if data_dict["num_boxes"] > 0:
         giou_loss /= data_dict["num_boxes"]
 
-    return {"loss_giou": giou_loss}
+    return giou_loss
 
 def loss_size(outputs, data_dict, assignments):
     gt_box_sizes = data_dict["gt_box_sizes_normalized"]
@@ -525,7 +527,7 @@ def loss_size(outputs, data_dict, assignments):
         size_loss /= data_dict["num_boxes"]
     else:
         size_loss = torch.zeros(1, device=pred_box_sizes.device).squeeze()
-    return {"loss_size": size_loss}
+    return size_loss
 
 # Define matcher and loss weights:
 matcher = Matcher(1,0,2,0)
@@ -556,14 +558,13 @@ def single_output_forward(outputs, data_dict):
     losses = {}
 
     # change it --> not working yet
-    losses['loss_center'] = loss_center(outputs, data_dict, assignments)
-    losses['loss_size'] = loss_size(outputs, data_dict, assignments)
-    losses['loss_giou'] = loss_giou(outputs, data_dict, assignments)
-    losses['loss_angle_cls'], losses['angle_reg_loss'] = loss_angle(outputs, data_dict, assignments)
-    losses['loss_sem_cls'] = loss_sem_cls(outputs, data_dict, assignments)
+    losses['center_loss'] = loss_center(outputs, data_dict, assignments)
+    losses['size_loss'] = loss_size(outputs, data_dict, assignments)
+    losses['giou_loss'] = loss_giou(outputs, data_dict, assignments)
+    losses['angle_cls_loss'], losses['angle_reg_loss'] = loss_angle(outputs, data_dict, assignments)
+    losses['sem_cls_loss'] = loss_sem_cls(outputs, data_dict, assignments)
 
-    #losses = 
-    final_loss = giou_loss_weight*losses['loss_giou'] + sem_cls_loss_weight*losses['sem_cls_loss'] + angle_cls_loss_weight*losses['angle_cls_loss'] + angle_reg_loss_weight*losses['angle_reg_loss'] + center_loss_weight*losses['center_loss'] + size_loss_weight*losses['size_loss']
+    final_loss = giou_loss_weight*losses['giou_loss'] + sem_cls_loss_weight*losses['sem_cls_loss'] + angle_cls_loss_weight*losses['angle_cls_loss'] + angle_reg_loss_weight*losses['angle_reg_loss'] + center_loss_weight*losses['center_loss'] + size_loss_weight*losses['size_loss']
 
     return final_loss, losses
 
@@ -625,12 +626,12 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     obj_loss, loss_dict = forward(data_dict)
     
     if detection:
-        data_dict['center_loss'] = loss_dict['loss_center']
-        data_dict['size_loss'] = loss_dict['loss_size']
-        data_dict['giou_loss'] = loss_dict['loss_giou']
-        data_dict['angle_cls_loss'] = loss_dict['loss_angle_cls']
-        data_dict['angle_reg_loss'] = loss_dict['loss_angle_reg']
-        data_dict['sem_cls_loss'] = loss_dict['loss_sem_cls']
+        data_dict['center_loss'] = loss_dict['center_loss']
+        data_dict['size_loss'] = loss_dict['size_loss']
+        data_dict['giou_loss'] = loss_dict['giou_loss']
+        data_dict['angle_cls_loss'] = loss_dict['angle_cls_loss']
+        data_dict['angle_reg_loss'] = loss_dict['angle_reg_loss']
+        data_dict['sem_cls_loss'] = loss_dict['sem_cls_loss']
         data_dict['obj_loss'] = obj_loss
     else:
         data_dict['center_loss'] = torch.zeros(1)[0].cuda()
