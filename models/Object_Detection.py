@@ -441,8 +441,6 @@ class Object_Detection(nn.Module):
             query_xyz, point_cloud_dims, box_features
         )
         
-        box_pred = box_predictions['outputs']
-        #print(box_predictions)
         '''
         print(box_pred["sem_cls_logits"].size())
         print(box_pred["center_normalized"].size())
@@ -477,11 +475,13 @@ class Object_Detection(nn.Module):
         # definitely try also without it
         m = nn.Linear(256,128)
         m.cuda()
+        
         # final decoder layer output
-        box_features = box_features[-1]
-        box_features = box_features.reshape(box_features.shape[1],box_features.shape[0],box_features.shape[2]) # (batch X num_queries X channels)
-        data_dict["aggregated_vote_features"] = m(box_features)
-
+        #box_final_features = box_features[-1].clone()
+        box_final_features = torch.zeros(256,2,256).cuda()
+        features = box_final_features.transpose(0, 1)
+        data_dict["aggregated_vote_features"] = m(features)
+        
         # look at box_predictions
         #return box_predictions
 

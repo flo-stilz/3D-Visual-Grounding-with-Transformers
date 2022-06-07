@@ -94,7 +94,7 @@ def get_model(args):
                 param.requires_grad = False
     
     # to CUDA
-    os.environ["CUDA_VISIBLE_DEVICES"]="2"
+    #os.environ["CUDA_VISIBLE_DEVICES"]="1"
     model = model.cuda()
 
     return model
@@ -227,7 +227,7 @@ def train(args):
 
     print("initializing...")
     solver, num_params, root = get_solver(args, dataloader)
-
+    print("Parameters: " + str(num_params/1000000)+" mil")
     print("Start training...\n")
     save_info(args, root, num_params, train_dataset, val_dataset)
     solver(args.epoch, args.verbose)
@@ -236,7 +236,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", type=str, help="tag for the training, e.g. cuda_wl", default="")
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
-    parser.add_argument("--batch_size", type=int, help="batch size", default=4) # initially 14
+    parser.add_argument("--batch_size", type=int, help="batch size", default=2) # initially 14
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=5000)
