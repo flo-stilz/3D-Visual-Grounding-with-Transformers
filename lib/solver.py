@@ -456,7 +456,7 @@ class Solver():
                 #self.best["objectness_loss"] = np.mean(self.log[phase]["objectness_loss"])
                 #self.best["vote_loss"] = np.mean(self.log[phase]["vote_loss"])
                 #self.best["box_loss"] = np.mean(self.log[phase]["box_loss"])
-                self.best["obj_loss"] = np.mean(self.log[phase]["box_loss"])
+                self.best["obj_loss"] = np.mean(self.log[phase]["obj_loss"])
                 self.best["lang_acc"] = np.mean(self.log[phase]["lang_acc"])
                 #self.best["ref_acc"] = np.mean(self.log[phase]["ref_acc"])
                 #self.best["obj_acc"] = np.mean(self.log[phase]["obj_acc"])
@@ -537,7 +537,7 @@ class Solver():
             #train_objectness_loss=round(np.mean([v for v in self.log["train"]["objectness_loss"]]), 5),
             #train_vote_loss=round(np.mean([v for v in self.log["train"]["vote_loss"]]), 5),
             #train_box_loss=round(np.mean([v for v in self.log["train"]["box_loss"]]), 5),
-            train_box_loss=round(np.mean([v for v in self.log["train"]["obj_loss"]]), 5),
+            train_obj_loss=round(np.mean([v for v in self.log["train"]["obj_loss"]]), 5),
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             #train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
             #train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
@@ -565,7 +565,7 @@ class Solver():
             #train_objectness_loss=round(np.mean([v for v in self.log["train"]["objectness_loss"]]), 5),
             #train_vote_loss=round(np.mean([v for v in self.log["train"]["vote_loss"]]), 5),
             #train_box_loss=round(np.mean([v for v in self.log["train"]["box_loss"]]), 5),
-            train_box_loss=round(np.mean([v for v in self.log["train"]["obj_loss"]]), 5),
+            train_obj_loss=round(np.mean([v for v in self.log["train"]["obj_loss"]]), 5),
             train_lang_acc=round(np.mean([v for v in self.log["train"]["lang_acc"]]), 5),
             #train_ref_acc=round(np.mean([v for v in self.log["train"]["ref_acc"]]), 5),
             #train_obj_acc=round(np.mean([v for v in self.log["train"]["obj_acc"]]), 5),
@@ -579,7 +579,7 @@ class Solver():
             #val_objectness_loss=round(np.mean([v for v in self.log["val"]["objectness_loss"]]), 5),
             #val_vote_loss=round(np.mean([v for v in self.log["val"]["vote_loss"]]), 5),
             #val_box_loss=round(np.mean([v for v in self.log["val"]["box_loss"]]), 5),
-            val_box_loss=round(np.mean([v for v in self.log["val"]["obj_loss"]]), 5),
+            val_obj_loss=round(np.mean([v for v in self.log["val"]["obj_loss"]]), 5),
             val_lang_acc=round(np.mean([v for v in self.log["val"]["lang_acc"]]), 5),
             #val_ref_acc=round(np.mean([v for v in self.log["val"]["ref_acc"]]), 5),
             #val_obj_acc=round(np.mean([v for v in self.log["val"]["obj_acc"]]), 5),
