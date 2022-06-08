@@ -477,8 +477,8 @@ class Object_Detection(nn.Module):
         m.cuda()
         
         # final decoder layer output
-        #box_final_features = box_features[-1].clone()
-        box_final_features = torch.zeros(256,2,256).cuda()
+        box_final_features = box_features[-1].clone()
+        #box_final_features = torch.zeros(256,2,256).cuda()
         features = box_final_features.transpose(0, 1)
         data_dict["aggregated_vote_features"] = m(features)
         

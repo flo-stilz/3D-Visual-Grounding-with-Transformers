@@ -629,7 +629,6 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     
     # 3DETR Obj detection loss:
     obj_loss, loss_dict = forward(data_dict)
-    print(obj_loss)
     
     if detection:
         data_dict['center_loss'] = loss_dict['center_loss']
@@ -701,6 +700,5 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     loss *= 10 # amplify
 
     data_dict['loss'] = loss
-    print(loss)
 
     return loss, data_dict
