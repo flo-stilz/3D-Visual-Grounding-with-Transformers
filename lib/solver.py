@@ -128,7 +128,7 @@ BEST_REPORT_TEMPLATE = """
 """
 
 class Solver():
-    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=1, 
+    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
     lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None):
 

@@ -9,6 +9,8 @@ import math
 from functools import partial
 
 from lib.pointnet2.pointnet2_utils import furthest_point_sample
+from utils.box_util import get_3d_box
+from lib.eval_helper import construct_bbox_corners
 # not implemented yet
 from DETR.utils.pc_util import scale_points, shift_scale_points
 
@@ -73,6 +75,17 @@ class BoxProcessor(object):
         return self.dataset_config.box_parametrization_to_corners(
             box_center_unnorm, box_size_unnorm, box_angle
         )
+    def box_to_corners(
+        self, box_center_unnorm, box_size_unnorm, box_angle
+    ):
+        for i in range(box_center_unnorm.shape[0]):
+            print(box_size_unnorm.shape)
+            if i==0:
+                box_corners = construct_bbox_corners(box_center_unnorm[i].detach().cpu().numpy(), box_size_unnorm[i].detach().cpu().numpy())
+            else:
+                box_corners = box_corners.vstack((box_corners, construct_bbox_corners(box_center_unnorm[i].detach().cpu().numpy(), box_size_unnorm[i].detach().cpu().numpy())))
+                
+        return box_corners
 
 
 class Object_Detection(nn.Module):
@@ -317,10 +330,14 @@ class Object_Detection(nn.Module):
             size_unnormalized = self.box_processor.compute_predicted_size(
                 size_normalized[l], point_cloud_dims
             )
+            
             box_corners = self.box_processor.box_parametrization_to_corners(
                 center_unnormalized, size_unnormalized, angle_continuous
             )
-
+            '''
+            box_corners = self.box_processor.box_to_corners(center_unnormalized, size_unnormalized, angle_continuous)
+            print(box_corners.shape)
+            '''
             # below are not used in computing loss (only for matching/mAP eval)
             # we compute them with no_grad() so that distributed training does not complain about unused variables
             with torch.no_grad():

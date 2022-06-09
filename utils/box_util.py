@@ -119,6 +119,7 @@ def box3d_iou(corners1, corners2):
 
     x_min_1, x_max_1, y_min_1, y_max_1, z_min_1, z_max_1 = get_box3d_min_max(corners1)
     x_min_2, x_max_2, y_min_2, y_max_2, z_min_2, z_max_2 = get_box3d_min_max(corners2)
+    
     xA = np.maximum(x_min_1, x_min_2)
     yA = np.maximum(y_min_1, y_min_2)
     zA = np.maximum(z_min_1, z_min_2)
