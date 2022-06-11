@@ -46,6 +46,7 @@ class RefNet(nn.Module):
         # Vote aggregation and object proposal
         self.proposal = ProposalModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling)
         '''
+        '''
         if not no_reference:
             # --------- LANGUAGE ENCODING ---------
             # Encode the input descriptions into vectors
@@ -55,7 +56,7 @@ class RefNet(nn.Module):
             # --------- PROPOSAL MATCHING ---------
             # Match the generated proposals and select the most confident ones
             self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
-        
+        '''
     def forward(self, data_dict):
         """ Forward pass of the network
 
@@ -103,7 +104,7 @@ class RefNet(nn.Module):
         # --------- PROPOSAL GENERATION ---------
         data_dict = self.proposal(xyz, features, data_dict)
         '''
-        
+        '''
         if not self.no_reference:
             #######################################
             #                                     #
@@ -123,5 +124,5 @@ class RefNet(nn.Module):
 
             # --------- PROPOSAL MATCHING ---------
             data_dict = self.match(data_dict)
-        
+        '''
         return data_dict

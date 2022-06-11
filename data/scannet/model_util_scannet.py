@@ -80,6 +80,11 @@ def rotate_aligned_boxes_along_axis(input_boxes, rot_mat, axis):
 
 class ScannetDatasetConfig(object):
     def __init__(self):
+        # added for 3DETR
+        #self.num_semcls = 18
+        #self.num_angle_bin = 1
+        #self.max_num_obj = 64
+        ####################
         self.type2class = {'cabinet':0, 'bed':1, 'chair':2, 'sofa':3, 'table':4, 'door':5,
             'window':6,'bookshelf':7,'picture':8, 'counter':9, 'desk':10, 'curtain':11,
             'refrigerator':12, 'shower curtain':13, 'toilet':14, 'sink':15, 'bathtub':16, 'others':17}  
