@@ -133,6 +133,7 @@ def box3d_iou(corners1, corners2):
 
     return iou
 
+
 def get_box3d_min_max(corner):
     ''' Compute min and max coordinates for 3D bounding box
         Note: only for axis-aligned bounding boxes

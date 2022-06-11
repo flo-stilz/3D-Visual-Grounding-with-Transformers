@@ -233,8 +233,7 @@ def compute_reference_loss(data_dict, config):
     gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
     
     gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
-    #data_dict['gt_box_corners'] = gt_bbox_batch 
-    print(gt_bbox_batch.shape)
+    data_dict['final_gt_box_corner'] = gt_bbox_batch 
     '''
     print(data_dict['gt_box_corners'].shape)
     gt_bboxes = data_dict['gt_box_corners']
