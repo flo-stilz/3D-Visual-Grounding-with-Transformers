@@ -152,14 +152,14 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     data_dict['pred_heading_residual'] = pred_heading_residual
     data_dict['pred_size_class'] = pred_size_class
     data_dict['pred_size_residual'] = pred_size_residual
-    '''
+    
     gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
     gt_center = data_dict['center_label'] # (B,MAX_NUM_OBJ,3)
     gt_heading_class = data_dict['heading_class_label'] # B,K2
     gt_heading_residual = data_dict['heading_residual_label'] # B,K2
     gt_size_class = data_dict['size_class_label'] # B,K2
     gt_size_residual = data_dict['size_residual_label'] # B,K2,3
-
+    '''
     ious = []
     multiple = []
     others = []
@@ -176,7 +176,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             pred_size_class[i, pred_ref_idx].detach().cpu().numpy(), 
             pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
         )
-        '''
+        
         gt_ref_idx = gt_ref[i]
         gt_obb = config.param2obb(
             gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(), 
@@ -185,24 +185,32 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             gt_size_class[i, gt_ref_idx].detach().cpu().numpy(), 
             gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
         )
+        '''
         #pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
         cluster_ref = data_dict['cluster_ref']
         pred_bbox = data_dict['outputs']['box_corners'][i][torch.argmax(cluster_ref[i],0)]
         pred_bbox = pred_bbox.detach().cpu().numpy()
+        '''
         pred_center = data_dict['outputs']['center_unnormalized'][i][torch.argmax(cluster_ref[i],0)].detach().cpu().numpy()
         pred_size = data_dict['outputs']['size_unnormalized'][i][torch.argmax(cluster_ref[i],0)].detach().cpu().numpy()
         pred_angle = data_dict['outputs']['angle_continuous'][i][torch.argmax(cluster_ref[i],0)].detach().cpu().numpy()
         pred_bbox = get_3d_box(pred_size, pred_angle, pred_center)
+        
         gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+        '''
+        gt_bbox = data_dict['gt_box_corners'][i].detach().cpu().numpy()
         iou = eval_ref_one_sample(pred_bbox, gt_bbox)
         ious.append(iou)
 
         # NOTE: get_3d_box() will return problematic bboxes
         #pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
+        '''
         pred_bbox = construct_bbox_corners(pred_center, pred_size)
         gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
+        '''
         pred_bboxes.append(pred_bbox)
         gt_bboxes.append(gt_bbox)
+        
 
         # construct the multiple mask
         multiple.append(data_dict["unique_multiple"][i].item())

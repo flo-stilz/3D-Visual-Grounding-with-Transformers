@@ -71,7 +71,8 @@ def get_model(args):
             use_bidir=args.use_bidir,
             no_reference=True
         )
-
+        print("yeah")
+        '''
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
 
@@ -79,7 +80,17 @@ def get_model(args):
         model.backbone_net = pretrained_model.backbone_net
         model.vgen = pretrained_model.vgen
         model.proposal = pretrained_model.proposal
+        '''
+        # 3DETR pretrained:
+        print(model.Object_Detection)
+        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
+        pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
 
+        # mount
+        print(pretrained_model)
+        model.Object_Detection = pretrained_model
+        print(model)
+        
         if args.no_detection:
             # freeze pointnet++ backbone
             for param in model.backbone_net.parameters():
@@ -214,8 +225,8 @@ def train(args):
     scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
     # solely for quick testing:
     #######################################
-    #scanrefer_train = scanrefer_train[:500]
-    #scanrefer_val = scanrefer_val[:300]
+    scanrefer_train = scanrefer_train[:3000]
+    scanrefer_val = scanrefer_val[:1000]
     #######################################
     scanrefer = {
         "train": scanrefer_train,
@@ -243,10 +254,10 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
     parser.add_argument("--batch_size", type=int, help="batch size", default=6) # initially 14
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
-    parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
+    parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10) # default 10
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=3000)
-    parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
-    parser.add_argument("--wd", type=float, help="weight decay", default=1e-5)
+    parser.add_argument("--lr", type=float, help="learning rate", default=3e-3) # default 1e-3
+    parser.add_argument("--wd", type=float, help="weight decay", default=1e-12) # default 1e-6
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")
     parser.add_argument("--num_proposals", type=int, default=256, help="Proposal number [default: 256]")
     parser.add_argument("--num_scenes", type=int, default=-1, help="Number of scenes [default: -1]")

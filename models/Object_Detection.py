@@ -106,7 +106,7 @@ class Object_Detection(nn.Module):
         self.enc_dim=256
         self.enc_nhead=4
         self.enc_nlayers=3
-        self.enc_dropout=0.1
+        self.enc_dropout=0.0#0.1
         self.enc_activation="relu"
         self.enc_ffn_dim=128
         self.enc_pos_emeb=None
@@ -114,11 +114,11 @@ class Object_Detection(nn.Module):
         self.dec_nlayers=8
         self.dec_dim=256
         self.dec_ffn_dim=256
-        self.dec_dropout=0.1
+        self.dec_dropout=0.0#0.1
         self.dec_nhead=4
 
         self.position_embedding="fourier",
-        self.mlp_dropout=0.3,
+        self.mlp_dropout=0.0,#0.3,
         self.num_queries=256,
         self.encoder_only = False
         dataset_config = build_dataset("scannet")
@@ -129,6 +129,10 @@ class Object_Detection(nn.Module):
         self.decoder = self.build_decoder()
         self.build_mlp_heads(dataset_config, self.dec_dim, self.mlp_dropout)
         self.box_processor = BoxProcessor(dataset_config)
+        # there might be no need for this linear layer
+        # definitely try also without it
+        self.feature_processor = nn.Linear(256,128)
+        #self.feature_processor.cuda()
         if hasattr(self.encoder, "masking_radius"):
             hidden_dims = [self.enc_dim]
         else:
@@ -488,16 +492,12 @@ class Object_Detection(nn.Module):
         data_dict['outputs'] = box_predictions['outputs']
         data_dict['aux_outputs'] = box_predictions['aux_outputs']
         
-        # there might be no need for this linear layer
-        # definitely try also without it
-        m = nn.Linear(256,128)
-        m.cuda()
         
         # final decoder layer output
         box_final_features = box_features[-1].clone()
         #box_final_features = torch.zeros(256,2,256).cuda()
         features = box_final_features.transpose(0, 1)
-        data_dict["aggregated_vote_features"] = m(features)
+        data_dict["aggregated_vote_features"] = self.feature_processor(features)
         
         # look at box_predictions
         #return box_predictions

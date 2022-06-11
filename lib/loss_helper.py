@@ -231,6 +231,9 @@ def compute_reference_loss(data_dict, config):
     gt_obb_batch = config.param2obb_batch(gt_center[:, 0:3], gt_heading_class, gt_heading_residual,
                     gt_size_class, gt_size_residual)
     gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
+    
+    gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
+    data_dict['gt_box_corners'] = gt_bbox_batch 
 
     # compute the iou score for all predictd positive ref
     batch_size, num_proposals = cluster_preds.shape
