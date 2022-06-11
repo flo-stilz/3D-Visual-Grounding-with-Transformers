@@ -128,7 +128,7 @@ class ScannetReferenceDataset(Dataset):
         # Addition of 3DETR:
         raw_sizes = np.zeros((MAX_NUM_OBJ, 3), dtype=np.float32)
         raw_angles = np.zeros((MAX_NUM_OBJ,), dtype=np.float32)
-        # Vote Net Labels
+        ##################
         ref_box_label = np.zeros(MAX_NUM_OBJ) # bbox label for reference target
         ref_center_label = np.zeros(3) # bbox center for reference target
         ref_heading_class_label = 0

@@ -233,7 +233,24 @@ def compute_reference_loss(data_dict, config):
     gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
     
     gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
-    data_dict['gt_box_corners'] = gt_bbox_batch 
+    #data_dict['gt_box_corners'] = gt_bbox_batch 
+    print(gt_bbox_batch.shape)
+    '''
+    print(data_dict['gt_box_corners'].shape)
+    gt_bboxes = data_dict['gt_box_corners']
+    for i in range(len(data_dict['gt_box_corners'])):
+        ref_idx = torch.argmax(data_dict['ref_box_label'][i],0).item()
+        if i==0:
+            gt_bboxes = data_dict['gt_box_corners'][i][ref_idx]
+        elif i==1:
+            gt_bboxes = torch.stack((gt_bboxes, data_dict['gt_box_corners'][i][ref_idx]))
+        else:
+            gt_bboxes = torch.cat((gt_bboxes, data_dict['gt_box_corners'][i][ref_idx].reshape(1,8,3)))
+    print(gt_bboxes.shape)
+    print(gt_bboxes==torch.tensor(gt_bbox_batch).cuda())
+    print(gt_bbox_batch)
+    print(gt_bboxes)
+    '''
 
     # compute the iou score for all predictd positive ref
     batch_size, num_proposals = cluster_preds.shape
