@@ -106,7 +106,7 @@ class Object_Detection(nn.Module):
         self.enc_dim=256
         self.enc_nhead=4
         self.enc_nlayers=3
-        self.enc_dropout=0.0#0.1
+        self.enc_dropout=0.1
         self.enc_activation="relu"
         self.enc_ffn_dim=128
         self.enc_pos_emeb=None
@@ -114,11 +114,11 @@ class Object_Detection(nn.Module):
         self.dec_nlayers=8
         self.dec_dim=256
         self.dec_ffn_dim=256
-        self.dec_dropout=0.0#0.1
+        self.dec_dropout=0.1
         self.dec_nhead=4
 
         self.position_embedding="fourier",
-        self.mlp_dropout=0.0,#0.3,
+        self.mlp_dropout=0.3,
         self.num_queries=256,
         self.encoder_only = False
         dataset_config = build_dataset("scannet")

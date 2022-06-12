@@ -20,6 +20,9 @@ from lib.eval_helper import get_eval
 from utils.eta import decode_eta
 from lib.pointnet2.pytorch_utils import BNMomentumScheduler
 
+from DETR.utils.ap_calculator import APCalculator
+from DETR.datasets import build_dataset
+
 
 ITER_REPORT_TEMPLATE = """
 -------------------------------iter: [{epoch_id}: {iter_id}/{total_iter}]-------------------------------
@@ -114,6 +117,7 @@ BEST_REPORT_TEMPLATE = """
 [loss] obj_loss: {obj_loss}
 [sco.] iou_rate_0.25: {iou_rate_25}, iou_rate_0.5: {iou_rate_5}
 """
+dataset_config = build_dataset("scannet")
 
 class Solver():
     def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
@@ -316,22 +320,39 @@ class Solver():
         self._running_log["loss"] = data_dict["loss"]
 
     def _eval(self, data_dict):
-        
+        '''
         data_dict = get_eval(
             data_dict=data_dict,
             config=self.config,
             reference=self.reference,
             use_lang_classifier=self.use_lang_classifier
         )
-        
+        '''
+        if self.train_iter%200==0:
+            print("eval on batch")
+            ap_calculator = APCalculator(
+            dataset_config=dataset_config,
+            ap_iou_thresh=[0.25, 0.5],
+            class2type_map=dataset_config.class2type,
+            exact_eval=False,
+            )
+            ap_calculator.step_meter(data_dict['outputs'], data_dict)
+            metrics = ap_calculator.compute_metrics()
+            #metric_str = ap_calculator.metrics_to_str(metrics, per_class=False)
+            metrics_dict = ap_calculator.metrics_to_dict(metrics)
+            iou025 = metrics_dict['mAP_0.25']
+            iou05 = metrics_dict['mAP_0.5']
+            self._running_log["iou_rate_0.25"] = iou025
+            self._running_log["iou_rate_0.5"] = iou05
+            print(self._running_log["iou_rate_0.25"])
         # dump
         #self._running_log["lang_acc"] = data_dict["lang_acc"].item()
         #self._running_log["ref_acc"] = np.mean(data_dict["ref_acc"])
         #self._running_log["obj_acc"] = data_dict["obj_acc"].item()
         #self._running_log["pos_ratio"] = data_dict["pos_ratio"].item()
         #self._running_log["neg_ratio"] = data_dict["neg_ratio"].item()
-        self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
-        self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
+        #self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
+        #self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
 
     def _feed(self, dataloader, phase, epoch_id):
         # switch mode
@@ -342,7 +363,7 @@ class Solver():
 
         # change dataloader
         dataloader = dataloader if phase == "train" else tqdm(dataloader)
-        
+        self.train_iter = 0
         for data_dict in dataloader:
             # move to cuda
             for key in data_dict:
@@ -403,9 +424,12 @@ class Solver():
             #self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
             #self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
             #self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
-            self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
-            self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])                
-
+            if self.train_iter%200==0:
+                print("logging")
+                print(self._running_log["iou_rate_0.25"])
+                self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
+                self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])                
+            self.train_iter+=1
             # report
             if phase == "train":
                 iter_time = self.log[phase]["fetch"][-1]
@@ -516,6 +540,7 @@ class Solver():
         eta = decode_eta(eta_sec)
 
         # print report
+        print(self.log["train"]["iou_rate_0.25"])
         iter_report = self.__iter_report_template.format(
             epoch_id=epoch_id + 1,
             iter_id=self._global_iter_id + 1,

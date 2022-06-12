@@ -200,6 +200,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         '''
         gt_bbox = data_dict['gt_box_corners'][i].detach().cpu().numpy()
         iou_test = []
+        '''
         for k in range(pred_bbox.shape[0]):
             for j in range(gt_bbox.shape[0]):
                 iou = eval_ref_one_sample(pred_bbox[k], gt_bbox[j])
@@ -207,7 +208,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
                 val = max(iou_test)
                 #print(val)
                 ious.append(iou_test.index(val))
-    
+        '''
         #iou = eval_ref_one_sample(pred_bbox, gt_bbox)
         #ious.append(iou)
 
@@ -227,7 +228,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         # construct the others mask
         flag = 1 if data_dict["object_cat"][i] == 17 else 0
         others.append(flag)
-    
+
     # lang
     '''
     if reference and use_lang_classifier:
@@ -236,9 +237,11 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
     '''
     # store
-    data_dict["ref_iou"] = ious
-    data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
-    data_dict["ref_iou_rate_0.5"] = np.array(ious)[np.array(ious) >= 0.5].shape[0] / np.array(ious).shape[0]
+    #data_dict["ref_iou"] = ious
+    #data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
+    #data_dict["ref_iou_rate_0.5"] = np.array(ious)[np.array(ious) >= 0.5].shape[0] / np.array(ious).shape[0]
+    #data_dict["ref_iou_rate_0.25"] = iou025
+    #data_dict["ref_iou_rate_0.5"] = iou05
     data_dict["ref_multiple_mask"] = multiple
     data_dict["ref_others_mask"] = others
     data_dict["pred_bboxes"] = pred_bboxes

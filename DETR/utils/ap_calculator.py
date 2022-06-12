@@ -14,10 +14,10 @@ import numpy as np
 import scipy.special as scipy_special
 import torch
 
-from utils.box_util import (extract_pc_in_box3d, flip_axis_to_camera_np,
+from DETR.utils.box_util import (extract_pc_in_box3d, flip_axis_to_camera_np,
                             get_3d_box, get_3d_box_batch)
-from utils.eval_det import eval_det_multiprocessing, get_iou_obb
-from utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
+from DETR.utils.eval_det import eval_det_multiprocessing, get_iou_obb
+from DETR.utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
 
 
 def flip_axis_to_depth(pc):
