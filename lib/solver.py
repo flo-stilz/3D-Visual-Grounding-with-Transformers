@@ -342,8 +342,8 @@ class Solver():
             metrics_dict = ap_calculator.metrics_to_dict(metrics)
             iou025 = metrics_dict['mAP_0.25']
             iou05 = metrics_dict['mAP_0.5']
-            self._running_log["iou_rate_0.25"] = iou025
-            self._running_log["iou_rate_0.5"] = iou05
+            self._running_log["iou_rate_0.25"] = iou025/100
+            self._running_log["iou_rate_0.5"] = iou05/100
             print(self._running_log["iou_rate_0.25"])
         # dump
         #self._running_log["lang_acc"] = data_dict["lang_acc"].item()
