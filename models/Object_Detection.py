@@ -365,7 +365,7 @@ class Object_Detection(nn.Module):
                 "box_corners": box_corners,
                 "center_offset": center_offset[l],
             }
-            
+
             outputs.append(box_prediction)
 
         # intermediate decoder layer outputs are only used during training

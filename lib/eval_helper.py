@@ -187,8 +187,8 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         )
         '''
         #pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
-        cluster_ref = data_dict['cluster_ref']
-        pred_bbox = data_dict['outputs']['box_corners'][i][torch.argmax(cluster_ref[i],0)]
+        #cluster_ref = data_dict['cluster_ref']
+        pred_bbox = data_dict['outputs']['box_corners'][i]
         pred_bbox = pred_bbox.detach().cpu().numpy()
         '''
         pred_center = data_dict['outputs']['center_unnormalized'][i][torch.argmax(cluster_ref[i],0)].detach().cpu().numpy()
@@ -199,9 +199,17 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
         '''
         gt_bbox = data_dict['gt_box_corners'][i].detach().cpu().numpy()
-        print(gt_bbox.shape)
-        iou = eval_ref_one_sample(pred_bbox, gt_bbox)
-        ious.append(iou)
+        iou_test = []
+        for k in range(pred_bbox.shape[0]):
+            for j in range(gt_bbox.shape[0]):
+                iou = eval_ref_one_sample(pred_bbox[k], gt_bbox[j])
+                iou_test.append(iou)
+                val = max(iou_test)
+                #print(val)
+                ious.append(iou_test.index(val))
+    
+        #iou = eval_ref_one_sample(pred_bbox, gt_bbox)
+        #ious.append(iou)
 
         # NOTE: get_3d_box() will return problematic bboxes
         #pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
@@ -221,11 +229,12 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         others.append(flag)
     
     # lang
+    '''
     if reference and use_lang_classifier:
         data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == data_dict["object_cat"]).float().mean()
     else:
         data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
-    
+    '''
     # store
     data_dict["ref_iou"] = ious
     data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
