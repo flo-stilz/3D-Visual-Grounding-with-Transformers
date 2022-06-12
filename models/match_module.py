@@ -40,7 +40,9 @@ class MatchModule(nn.Module):
         #objectness_masks = data_dict['objectness_scores'].float().reshape(data_dict['objectness_scores'].shape[0],data_dict['objectness_scores'].shape[1],1)# adapt size bug
         #print(features.size())
         '''
-        objectness_masks = -data_dict['outputs']["objectness_prob"].unsqueeze(-1)
+        #objectness_masks = -data_dict['outputs']["objectness_prob"].unsqueeze(-1)
+        objectness_masks = torch.as_tensor((data_dict['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32)
+
         # unpack outputs from language branch
         lang_feat = data_dict["lang_emb"] # batch_size, lang_size
         lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size, num_proposals, lang_size
