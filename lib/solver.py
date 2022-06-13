@@ -185,7 +185,7 @@ class Solver():
         self._running_log = {}
         self._global_iter_id = 0
         self._total_iter = {}             # set in __call__
-        self.eval_step = 3
+        self.eval_step = 100
 
         # templates
         self.__iter_report_template = ITER_REPORT_TEMPLATE
@@ -320,7 +320,7 @@ class Solver():
         self._running_log["obj_loss"] = data_dict["obj_loss"]
         self._running_log["loss"] = data_dict["loss"]
 
-    def _eval(self, data_dict):
+    def _eval(self, data_dict, phase):
         '''
         data_dict = get_eval(
             data_dict=data_dict,
@@ -329,7 +329,7 @@ class Solver():
             use_lang_classifier=self.use_lang_classifier
         )
         '''
-        if self.train_iter%self.eval_step==0:
+        if self.train_iter%self.eval_step==0 or phase=="val":
             print("eval on batch")
             ap_calculator = APCalculator(
             dataset_config=dataset_config,
@@ -408,7 +408,7 @@ class Solver():
             
             # eval
             start = time.time()
-            self._eval(data_dict)
+            self._eval(data_dict, phase)
             self.log[phase]["eval"].append(time.time() - start)
 
             # record log
@@ -425,7 +425,8 @@ class Solver():
             #self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
             #self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
             #self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
-            if self.train_iter%self.eval_step==0:
+
+            if self.train_iter%self.eval_step==0 or phase=="val":
                 print("logging")
                 print(self._running_log["iou_rate_0.25"])
                 self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])

@@ -282,8 +282,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", type=str, help="tag for the training, e.g. cuda_wl", default="")
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
-    parser.add_argument("--batch_size", type=int, help="batch size", default=6) # initially 14
-    parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
+    parser.add_argument("--batch_size", type=int, help="batch size", default=7) # initially 14
+    parser.add_argument("--epoch", type=int, help="number of epochs", default=360) # initially 50
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10) # default 10
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=3000)
     parser.add_argument("--lr", type=float, help="learning rate", default=5e-4) # default 1e-3

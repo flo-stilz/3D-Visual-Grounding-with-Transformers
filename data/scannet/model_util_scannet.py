@@ -9,6 +9,8 @@ import os
 sys.path.append(os.path.join(os.getcwd(), os.pardir, "lib")) # HACK add the lib folder
 from lib.config import CONF
 from utils.box_util import get_3d_box
+from DETR.utils.box_util import (flip_axis_to_camera_np, flip_axis_to_camera_tensor,
+                            get_3d_box_batch_np, get_3d_box_batch_tensor)
 
 def in_hull(p, hull):
     from scipy.spatial import Delaunay
@@ -81,8 +83,8 @@ def rotate_aligned_boxes_along_axis(input_boxes, rot_mat, axis):
 class ScannetDatasetConfig(object):
     def __init__(self):
         # added for 3DETR
-        #self.num_semcls = 18
-        #self.num_angle_bin = 1
+        self.num_semcls = 18
+        self.num_angle_bin = 1
         #self.max_num_obj = 64
         ####################
         self.type2class = {'cabinet':0, 'bed':1, 'chair':2, 'sofa':3, 'table':4, 'door':5,
@@ -176,3 +178,13 @@ class ScannetDatasetConfig(object):
         obb[:, 3:6] = box_size
         obb[:, 6] = heading_angle*-1
         return obb
+    
+    def box_parametrization_to_corners(self, box_center_unnorm, box_size, box_angle):
+        box_center_upright = flip_axis_to_camera_tensor(box_center_unnorm)
+        boxes = get_3d_box_batch_tensor(box_size, box_angle, box_center_upright)
+        return boxes
+
+    def box_parametrization_to_corners_np(self, box_center_unnorm, box_size, box_angle):
+        box_center_upright = flip_axis_to_camera_np(box_center_unnorm)
+        boxes = get_3d_box_batch_np(box_size, box_angle, box_center_upright)
+        return boxes

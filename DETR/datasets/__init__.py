@@ -1,6 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
-from .scannet import ScannetDetectionDataset, ScannetDatasetConfig
-#from data.scannet.model_util_scannet import ScannetDatasetConfig
+from .scannet import ScannetDetectionDataset#, ScannetDatasetConfig
+from data.scannet.model_util_scannet import ScannetDatasetConfig
 
 
 DATASET_FUNCTIONS = {
