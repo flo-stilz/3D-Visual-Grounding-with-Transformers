@@ -118,7 +118,7 @@ class Object_Detection(nn.Module):
         self.dec_nhead=4
 
         self.position_embedding="fourier",
-        self.mlp_dropout=0.3,
+        self.mlp_dropout=0.3
         self.num_queries=256,
         self.encoder_only = False
         dataset_config = build_dataset("scannet")
@@ -131,7 +131,7 @@ class Object_Detection(nn.Module):
         self.box_processor = BoxProcessor(dataset_config)
         # there might be no need for this linear layer
         # definitely try also without it
-        self.feature_processor = nn.Linear(256,128)
+        #self.feature_processor = nn.Linear(256,128)
         #self.feature_processor.cuda()
         if hasattr(self.encoder, "masking_radius"):
             hidden_dims = [self.enc_dim]
@@ -399,7 +399,6 @@ class Object_Detection(nn.Module):
         """
         
         pointcloud = data_dict["point_clouds"]
-
         batch_size = pointcloud.shape[0]
         
         xyz, features = self._break_up_pc(pointcloud)
@@ -497,7 +496,8 @@ class Object_Detection(nn.Module):
         box_final_features = box_features[-1].clone()
         #box_final_features = torch.zeros(256,2,256).cuda()
         features = box_final_features.transpose(0, 1)
-        data_dict["aggregated_vote_features"] = self.feature_processor(features)
+        #data_dict["aggregated_vote_features"] = self.feature_processor(features)
+        data_dict["aggregated_vote_features"] = features
         
         # look at box_predictions
         #return box_predictions

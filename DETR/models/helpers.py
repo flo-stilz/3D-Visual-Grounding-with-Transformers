@@ -82,7 +82,7 @@ class GenericMLP(nn.Module):
                 layers.append(norm(x))
             layers.append(activation())
             if dropout is not None:
-                layers.append(nn.Dropout(p=dropout[idx][0]))
+                layers.append(nn.Dropout(p=dropout[idx]))
             prev_dim = x
         if use_conv:
             layer = nn.Conv1d(prev_dim, output_dim, 1, bias=output_use_bias)

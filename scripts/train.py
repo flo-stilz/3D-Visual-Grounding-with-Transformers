@@ -19,6 +19,10 @@ from lib.dataset import ScannetReferenceDataset
 from lib.solver import Solver
 from lib.config import CONF
 from models.refnet import RefNet
+from models.Object_Detection import Object_Detection
+from DETR.models.model_3detr import build_3detr
+from DETR.datasets import build_dataset
+import copy
 
 SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
 SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))
@@ -45,6 +49,7 @@ def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
 def get_model(args):
     # initiate model
     input_channels = int(args.use_multiview) * 128 + int(args.use_normal) * 3 + int(args.use_color) * 3 + int(not args.no_height)
+
     model = RefNet(
         num_class=DC.num_class,
         num_heading_bin=DC.num_heading_bin,
@@ -60,7 +65,7 @@ def get_model(args):
     # trainable model
     if args.use_pretrained:
         # load model
-        print("loading pretrained VoteNet...")
+        print("loading pretrained 3DETR...")
         pretrained_model = RefNet(
             num_class=DC.num_class,
             num_heading_bin=DC.num_heading_bin,
@@ -71,7 +76,8 @@ def get_model(args):
             use_bidir=args.use_bidir,
             no_reference=True
         )
-        print("yeah")
+
+        pretrained_model = Object_Detection(input_channels)
         '''
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
@@ -82,14 +88,38 @@ def get_model(args):
         model.proposal = pretrained_model.proposal
         '''
         # 3DETR pretrained:
-        print(model.Object_Detection)
-        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
+        #print(pretrained_model)
+        '''
+        print(input_channels)
+        print(int(not args.no_height))
+        for param in pretrained_model.parameters():
+            for weights in param.data:
+                print(weights)
+                break
+            break
+        '''
+        #print(pretrained_model.state_dict()['pre_encoder.mlp_module.layer0.conv.weight'])
+        #print(model.Object_Detection)
+        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_ep1080.pth")
+        pre = torch.load(pretrained_path)
+
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
 
+        for key in pre['model']:
+            sd = pretrained_model.state_dict()
+            sd[key] = pre['model'][key]
+            pretrained_model.load_state_dict(sd)
+        
         # mount
-        print(pretrained_model)
+        '''
+        for param in pretrained_model.parameters():
+            for weights in param.data:
+                print(weights)
+                break
+            break
+        '''
         model.Object_Detection = pretrained_model
-        print(model)
+        #print(model)
         
         if args.no_detection:
             # freeze pointnet++ backbone
@@ -225,8 +255,8 @@ def train(args):
     scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
     # solely for quick testing:
     #######################################
-    #scanrefer_train = scanrefer_train[:3000]
-    #scanrefer_val = scanrefer_val[:1000]
+    scanrefer_train = scanrefer_train[:3000]
+    scanrefer_val = scanrefer_val[:1000]
     #######################################
     scanrefer = {
         "train": scanrefer_train,
