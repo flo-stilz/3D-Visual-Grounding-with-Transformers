@@ -16,8 +16,8 @@ from models.BERT_module import BERTModule
 class RefNet(nn.Module):
     def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, 
     input_feature_dim=0, num_proposal=128, vote_factor=1, sampling="vote_fps",
-    use_lang_classifier=True, use_bidir=False, no_reference=False,
-    emb_size=300, hidden_size=256):
+    use_lang_classifier=True, use_bidir=False, no_reference=False, chunking = False,
+    emb_size=300, hidden_size=256, lang_module='gru'):
         super().__init__()
 
         self.num_class = num_class
@@ -32,6 +32,8 @@ class RefNet(nn.Module):
         self.use_lang_classifier = use_lang_classifier
         self.use_bidir = use_bidir      
         self.no_reference = no_reference
+        self.chunking = chunking
+        self.lang_module = lang_module
         '''
         # --------- Object Detection ------------
         #self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
@@ -49,8 +51,14 @@ class RefNet(nn.Module):
             # --------- LANGUAGE ENCODING ---------
             # Encode the input descriptions into vectors
             # (including attention and language classification)
-            self.lang = LangModule(num_class, use_lang_classifier, use_bidir, emb_size, hidden_size)
-            #self.bert = BERTModule(num_class, use_lang_classifier, hidden_size)
+
+            if self.lang_module == 'gru':
+                self.lang = LangModule(num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.chunking)
+            elif self.lang_module == 'bert':
+                self.bert = BERTModule(num_class, use_lang_classifier, hidden_size, self.chunking)
+            else:
+                AssertionError
+
             # --------- PROPOSAL MATCHING ---------
             # Match the generated proposals and select the most confident ones
             #self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
@@ -111,8 +119,12 @@ class RefNet(nn.Module):
             #######################################
 
             # --------- LANGUAGE ENCODING ---------
-            data_dict = self.lang(data_dict)
-            #data_dict = self.bert(data_dict)
+            if self.lang_module == 'gru':
+                data_dict = self.lang(data_dict)
+            elif self.lang_module == 'bert':
+                data_dict = self.bert(data_dict)
+            else:
+                AssertionError
 
             #######################################
             #                                     #

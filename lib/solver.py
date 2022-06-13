@@ -115,7 +115,7 @@ BEST_REPORT_TEMPLATE = """
 """
 
 class Solver():
-    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=1, 
+    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
     lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None):
 
@@ -309,6 +309,8 @@ class Solver():
         #self._running_log["objectness_loss"] = data_dict["objectness_loss"]
         #self._running_log["vote_loss"] = data_dict["vote_loss"]
         #self._running_log["box_loss"] = data_dict["box_loss"]
+        # print(f'Running loss: {self._running_log["loss"]}')
+        # print(f'Running loss: {self._running_log["lang_loss"]}')
         self._running_log["loss"] = data_dict["loss"]
 
     def _eval(self, data_dict):
@@ -365,7 +367,7 @@ class Solver():
             # load
             self.log[phase]["fetch"].append(data_dict["load_time"].sum().item())
 
-            with torch.autograd.set_detect_anomaly(True):
+            with torch.autograd.set_detect_anomaly(False):
                 # forward
                 start = time.time()
                 data_dict = self._forward(data_dict)
@@ -384,8 +386,9 @@ class Solver():
             self.log[phase]["eval"].append(time.time() - start)
 
             # record log
-            '''
+            
             self.log[phase]["loss"].append(self._running_log["loss"].item())
+            '''
             self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
             '''
             self.log[phase]["lang_loss"].append(self._running_log["lang_loss"].item())

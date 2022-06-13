@@ -250,7 +250,19 @@ def compute_reference_loss(data_dict, config):
 
 def compute_lang_classification_loss(data_dict):
     criterion = torch.nn.CrossEntropyLoss()
-    loss = criterion(data_dict["lang_scores"], data_dict["object_cat"])
+    # chunking
+    if "object_cat_list" in data_dict:
+        object_cat_list = data_dict["object_cat_list"]
+        batch_size, len_nun_max = object_cat_list.shape[:2]
+        lang_num = data_dict["lang_num"]
+        lang_scores = data_dict["lang_scores"].reshape(batch_size, len_nun_max, -1)
+        loss = 0.
+        for i in range(batch_size):
+            num = lang_num[i]
+            loss += criterion(lang_scores[i, :num], object_cat_list[i, :num])
+        loss = loss / batch_size
+    else:
+        loss = criterion(data_dict["lang_scores"], data_dict["object_cat"])
 
     return loss
 '''
@@ -589,7 +601,7 @@ def forward(self, data_dict):
     
     return loss, loss_dict
 '''
-def get_loss(data_dict, config, detection=True, reference=True, use_lang_classifier=False):
+def get_loss(data_dict, config, detection=True, reference=True, use_lang_classifier=True):
     """ Loss functions
 
     Args:
@@ -689,7 +701,9 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         + 0.1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"]
     '''
     loss = data_dict["lang_loss"]
-    
+    # print(f'data_dict["lang_loss"]: {data_dict["lang_loss"]}')
+    # print(f'loss: {loss}')
+
     loss *= 10 # amplify
 
     data_dict['loss'] = loss

@@ -26,19 +26,25 @@ SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_
 # constants
 DC = ScannetDatasetConfig()
 
-def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
+def get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, split, config, augment):
     dataset = ScannetReferenceDataset(
-        scanrefer=scanrefer[split], 
+        scanrefer=scanrefer[split],
+        scanrefer_new = scanrefer_new[split] if args.use_chunking else None,
         scanrefer_all_scene=all_scene_list, 
         split=split, 
         num_points=args.num_points, 
         use_height=(not args.no_height),
         use_color=args.use_color, 
         use_normal=args.use_normal, 
-        use_multiview=args.use_multiview
+        use_multiview=args.use_multiview,
+        #chunking
+        chunking = args.use_chunking,
+        lang_num_max=args.lang_num_max,
+        # language module
+        lang_module = args.lang_module
     )
     # dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
 
     return dataset, dataloader
 
@@ -54,7 +60,9 @@ def get_model(args):
         num_proposal=args.num_proposals,
         use_lang_classifier=(not args.no_lang_cls),
         use_bidir=args.use_bidir,
-        no_reference=args.no_reference
+        no_reference=args.no_reference,
+        chunking = args.use_chunking,
+        lang_module = args.lang_module
     )
 
     # trainable model
@@ -69,7 +77,8 @@ def get_model(args):
             num_proposal=args.num_proposals,
             input_feature_dim=input_channels,
             use_bidir=args.use_bidir,
-            no_reference=True
+            no_reference=True,
+            chunking = args.use_chunking
         )
 
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
@@ -94,7 +103,9 @@ def get_model(args):
                 param.requires_grad = False
     
     # to CUDA
-    os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    # os.environ["CUDA_VISIBLE_DEVICES"]="1"
+    # print(f'Cuda available: {torch.cuda.is_available()}')
+    print(model)
     model = model.cuda()
 
     return model
@@ -166,7 +177,7 @@ def get_scannet_scene_list(split):
 
     return scene_list
 
-def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes):
+def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes, lang_num_max):
     if args.no_reference:
         train_scene_list = get_scannet_scene_list("train")
         new_scanrefer_train = []
@@ -181,6 +192,7 @@ def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes):
             data = deepcopy(SCANREFER_VAL[0])
             data["scene_id"] = scene_id
             new_scanrefer_val.append(data)
+        
     else:
         # get initial scene list
         train_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_train])))
@@ -193,37 +205,121 @@ def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes):
         # slice train_scene_list
         train_scene_list = train_scene_list[:num_scenes]
 
+        if args.use_chunking:
+            # filter data in chosen scenes
+            new_scanrefer_train = []
+            scanrefer_train_new = []
+            scanrefer_train_new_scene = []
+            scene_id = ""
+            for data in scanrefer_train:
+                if data["scene_id"] in train_scene_list:
+                    new_scanrefer_train.append(data)
+                    if scene_id != data["scene_id"]:
+                        scene_id = data["scene_id"]
+                        if len(scanrefer_train_new_scene) > 0:
+                            scanrefer_train_new.append(scanrefer_train_new_scene)
+                        scanrefer_train_new_scene = []
+                    if len(scanrefer_train_new_scene) >= lang_num_max:
+                        scanrefer_train_new.append(scanrefer_train_new_scene)
+                        scanrefer_train_new_scene = []
+                    scanrefer_train_new_scene.append(data)
+                    """
+                    if data["scene_id"] not in scanrefer_train_new:
+                        scanrefer_train_new[data["scene_id"]] = []
+                    scanrefer_train_new[data["scene_id"]].append(data)
+                    """
+            scanrefer_train_new.append(scanrefer_train_new_scene)
+
+            new_scanrefer_val = scanrefer_val
+            scanrefer_val_new = []
+            scanrefer_val_new_scene = []
+            scene_id = ""
+            for data in scanrefer_val:
+                # if data["scene_id"] not in scanrefer_val_new:
+                # scanrefer_val_new[data["scene_id"]] = []
+                # scanrefer_val_new[data["scene_id"]].append(data)
+                if scene_id != data["scene_id"]:
+                    scene_id = data["scene_id"]
+                    if len(scanrefer_val_new_scene) > 0:
+                        scanrefer_val_new.append(scanrefer_val_new_scene)
+                    scanrefer_val_new_scene = []
+                if len(scanrefer_val_new_scene) >= lang_num_max:
+                    scanrefer_val_new.append(scanrefer_val_new_scene)
+                    scanrefer_val_new_scene = []
+                scanrefer_val_new_scene.append(data)
+            scanrefer_val_new.append(scanrefer_val_new_scene)
+        else:
         # filter data in chosen scenes
-        new_scanrefer_train = []
-        for data in scanrefer_train:
-            if data["scene_id"] in train_scene_list:
-                new_scanrefer_train.append(data)
+            new_scanrefer_train = []
+            for data in scanrefer_train:
+                if data["scene_id"] in train_scene_list:
+                    new_scanrefer_train.append(data)
 
-        new_scanrefer_val = scanrefer_val
+            new_scanrefer_val = scanrefer_val
 
-    # all scanrefer scene
-    all_scene_list = train_scene_list + val_scene_list
-
-    print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))
-
-    return new_scanrefer_train, new_scanrefer_val, all_scene_list
+    if args.use_chunking:
+        print("scanrefer_train_new", len(scanrefer_train_new), len(scanrefer_val_new), len(scanrefer_train_new[0]))  # 4819 1253 8
+        sum = 0
+        for i in range(len(scanrefer_train_new)):
+            sum += len(scanrefer_train_new[i])
+        print("training sample numbers", sum)  # 36665
+        # all scanrefer scene
+        all_scene_list = train_scene_list + val_scene_list
+        print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))  # 36665 9508
+        return new_scanrefer_train, new_scanrefer_val, all_scene_list, scanrefer_train_new, scanrefer_val_new
+    else:
+        # all scanrefer scene
+        all_scene_list = train_scene_list + val_scene_list
+        print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))
+        return new_scanrefer_train, new_scanrefer_val, all_scene_list
 
 def train(args):
     # init training dataset
     print("preparing data...")
-    scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
-    scanrefer = {
-        "train": scanrefer_train,
-        "val": scanrefer_val
-    }
+    if args.use_chunking:
+        scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_new, scanrefer_val_new = get_scanrefer(
+        SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
 
-    # dataloader
-    train_dataset, train_dataloader = get_dataloader(args, scanrefer, all_scene_list, "train", DC, True)
-    val_dataset, val_dataloader = get_dataloader(args, scanrefer, all_scene_list, "val", DC, False)
-    dataloader = {
-        "train": train_dataloader,
-        "val": val_dataloader
-    }
+        # quick testing
+        # with chunking doesn't work yet
+        #scanrefer_train = scanrefer_train[:3000]
+        #scanrefer_val = scanrefer_val[:3000]
+
+        scanrefer = {
+            "train": scanrefer_train,
+            "val": scanrefer_val
+        }
+        scanrefer_new = {
+            "train": scanrefer_train_new,
+            "val": scanrefer_val_new
+        }
+
+        # dataloader
+        train_dataset, train_dataloader = get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, "train", DC, augment=True)
+        val_dataset, val_dataloader = get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, "val", DC, augment=False)
+        dataloader = {
+            "train": train_dataloader,
+            "val": val_dataloader
+        }
+    else:
+        scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
+        
+        # quick testing
+        #scanrefer_train = scanrefer_train[:3000]
+        #scanrefer_val = scanrefer_val[:3000]
+        
+        scanrefer = {
+            "train": scanrefer_train,
+            "val": scanrefer_val
+        }
+
+        # dataloader
+        train_dataset, train_dataloader = get_dataloader(args, scanrefer, None, all_scene_list, "train", DC, True)
+        val_dataset, val_dataloader = get_dataloader(args, scanrefer, None, all_scene_list, "val", DC, False)
+        dataloader = {
+            "train": train_dataloader,
+            "val": val_dataloader
+        }
 
     print("initializing...")
     solver, num_params, root = get_solver(args, dataloader)
@@ -257,6 +353,11 @@ if __name__ == "__main__":
     parser.add_argument("--use_bidir", action="store_true", help="Use bi-directional GRU.")
     parser.add_argument("--use_pretrained", type=str, help="Specify the folder name containing the pretrained detection module.")
     parser.add_argument("--use_checkpoint", type=str, help="Specify the checkpoint root", default="")
+    #chunking
+    parser.add_argument("--use_chunking", action="store_true", help="Chunking")
+    parser.add_argument("--lang_num_max", type=int, help="lang num max", default=32)
+    #language module
+    parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
     args = parser.parse_args()
 
     # setting

@@ -55,8 +55,17 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         data_dict: dict
     """
 
-    batch_size, num_words, _ = data_dict["lang_feat"].shape
+    #batch_size, num_words, _ = data_dict["lang_feat"].shape
     #batch_size, num_words = data_dict["lang_inputs"].shape
+    # chunking
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
+    # no chunking
+    else:
+        if "lang_inputs" in data_dict:
+            batch_size, num_words = data_dict["lang_inputs"].shape
+        else:
+            batch_size, num_words, _ = data_dict["lang_feat"].shape
 
     '''
     objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
@@ -200,9 +209,15 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     '''
     # lang
     if reference and use_lang_classifier:
-        data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == data_dict["object_cat"]).float().mean()
+        # chunking used
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            object_cat = data_dict["object_cat_list"].reshape(batch_size*len_nun_max)
+            data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == object_cat).float().mean()
+        else:
+            data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == data_dict["object_cat"]).float().mean()
     else:
         data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
+
     '''
     # store
     data_dict["ref_iou"] = ious
