@@ -65,7 +65,7 @@ def get_model(args):
     # trainable model
     if args.use_pretrained:
         # load model
-        print("loading pretrained 3DETR...")
+        print("loading pretrained 3DETRm...")
         pretrained_model = RefNet(
             num_class=DC.num_class,
             num_heading_bin=DC.num_heading_bin,
@@ -100,7 +100,7 @@ def get_model(args):
         '''
         #print(pretrained_model.state_dict()['pre_encoder.mlp_module.layer0.conv.weight'])
         #print(model.Object_Detection)
-        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_ep1080.pth")
+        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
         pre = torch.load(pretrained_path)
 
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
@@ -255,8 +255,8 @@ def train(args):
     scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
     # solely for quick testing:
     #######################################
-    scanrefer_train = scanrefer_train[:3000]
-    scanrefer_val = scanrefer_val[:1000]
+    #scanrefer_train = scanrefer_train[:300]
+    #scanrefer_val = scanrefer_val[:100]
     #######################################
     scanrefer = {
         "train": scanrefer_train,

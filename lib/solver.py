@@ -185,7 +185,7 @@ class Solver():
         self._running_log = {}
         self._global_iter_id = 0
         self._total_iter = {}             # set in __call__
-        self.eval_step = 1
+        self.eval_step = 3
 
         # templates
         self.__iter_report_template = ITER_REPORT_TEMPLATE
@@ -335,7 +335,7 @@ class Solver():
             dataset_config=dataset_config,
             ap_iou_thresh=[0.25, 0.5],
             class2type_map=dataset_config.class2type,
-            exact_eval=False,
+            exact_eval=True,
             )
             ap_calculator.step_meter(data_dict['outputs'], data_dict)
             metrics = ap_calculator.compute_metrics()

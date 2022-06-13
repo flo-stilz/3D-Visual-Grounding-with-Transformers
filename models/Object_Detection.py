@@ -125,7 +125,7 @@ class Object_Detection(nn.Module):
         # --------- Architecture -----------
         
         self.pre_encoder = self.build_preencoder()
-        self.encoder = self.build_encoder("vanilla")
+        self.encoder = self.build_encoder("masked")
         self.decoder = self.build_decoder()
         self.build_mlp_heads(dataset_config, self.dec_dim, self.mlp_dropout)
         self.box_processor = BoxProcessor(dataset_config)
@@ -424,7 +424,7 @@ class Object_Detection(nn.Module):
             enc_inds = pre_enc_inds
         else:
             # use gather here to ensure that it works for both FPS and random sampling
-            enc_inds = torch.gather(pre_enc_inds, 1, enc_inds)
+            enc_inds = torch.gather(pre_enc_inds, 1, enc_inds.to(torch.int64))
             
         #######################   
         #####Decoding Step#####
