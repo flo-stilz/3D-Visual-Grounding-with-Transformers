@@ -106,7 +106,7 @@ class Object_Detection(nn.Module):
         self.enc_dim=256
         self.enc_nhead=4
         self.enc_nlayers=3
-        self.enc_dropout=0.0#0.1
+        self.enc_dropout=0.1
         self.enc_activation="relu"
         self.enc_ffn_dim=128
         self.enc_pos_emeb=None
@@ -114,18 +114,18 @@ class Object_Detection(nn.Module):
         self.dec_nlayers=8
         self.dec_dim=256
         self.dec_ffn_dim=256
-        self.dec_dropout=0.0#0.1
+        self.dec_dropout=0.1
         self.dec_nhead=4
 
         self.position_embedding="fourier",
-        self.mlp_dropout=0.0,#0.3,
+        self.mlp_dropout=0.3,
         self.num_queries=256,
         self.encoder_only = False
         dataset_config = build_dataset("scannet")
         # --------- Architecture -----------
         
         self.pre_encoder = self.build_preencoder()
-        self.encoder = self.build_encoder("vanilla")
+        self.encoder = self.build_encoder("masked")
         self.decoder = self.build_decoder()
         self.build_mlp_heads(dataset_config, self.dec_dim, self.mlp_dropout)
         self.box_processor = BoxProcessor(dataset_config)
@@ -425,7 +425,7 @@ class Object_Detection(nn.Module):
             enc_inds = pre_enc_inds
         else:
             # use gather here to ensure that it works for both FPS and random sampling
-            enc_inds = torch.gather(pre_enc_inds, 1, enc_inds)
+            enc_inds = torch.gather(pre_enc_inds, 1, enc_inds.to(torch.int64))
             
         #######################   
         #####Decoding Step#####

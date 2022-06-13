@@ -19,6 +19,7 @@ from lib.dataset import ScannetReferenceDataset
 from lib.solver import Solver
 from lib.config import CONF
 from models.refnet import RefNet
+from models.Object_Detection import Object_Detection
 
 SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
 SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))
@@ -38,7 +39,7 @@ def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
         use_multiview=args.use_multiview
     )
     # dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=12)
 
     return dataset, dataloader
 
@@ -60,7 +61,7 @@ def get_model(args):
     # trainable model
     if args.use_pretrained:
         # load model
-        print("loading pretrained VoteNet...")
+        print("loading pretrained 3DETRm...")
         pretrained_model = RefNet(
             num_class=DC.num_class,
             num_heading_bin=DC.num_heading_bin,
@@ -69,27 +70,17 @@ def get_model(args):
             num_proposal=args.num_proposals,
             input_feature_dim=input_channels,
             use_bidir=args.use_bidir,
-            no_reference=True
+            no_reference=False
         )
-        print("yeah")
+
+        pretrained_model = Object_Detection(input_channels)
         '''
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
-
         # mount
         model.backbone_net = pretrained_model.backbone_net
         model.vgen = pretrained_model.vgen
         model.proposal = pretrained_model.proposal
-        '''
-        # 3DETR pretrained:
-        print(model.Object_Detection)
-        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
-        pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
-
-        # mount
-        print(pretrained_model)
-        model.Object_Detection = pretrained_model
-        print(model)
         
         if args.no_detection:
             # freeze pointnet++ backbone
@@ -103,6 +94,48 @@ def get_model(args):
             # freeze detector
             for param in model.proposal.parameters():
                 param.requires_grad = False
+        '''
+        # 3DETR pretrained:
+        #print(pretrained_model)
+        '''
+        print(input_channels)
+        print(int(not args.no_height))
+        for param in pretrained_model.parameters():
+            for weights in param.data:
+                print(weights)
+                break
+            break
+        '''
+        #print(pretrained_model.state_dict()['pre_encoder.mlp_module.layer0.conv.weight'])
+        #print(model.Object_Detection)
+        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
+        pre = torch.load(pretrained_path)
+
+        pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
+
+        for key in pre['model']:
+            sd = pretrained_model.state_dict()
+            sd[key] = pre['model'][key]
+            pretrained_model.load_state_dict(sd)
+        
+        # mount
+        '''
+        for param in pretrained_model.parameters():
+            for weights in param.data:
+                print(weights)
+                break
+            break
+        '''
+        model.Object_Detection = pretrained_model
+        #print(model)
+        
+        if args.no_detection:
+            # freeze 3DETR
+            for param in model.Object_Detection.parameters():
+                param.requires_grad = False
+                
+        model.Object_Detection = pretrained_model
+        #print(model)
     
     # to CUDA
     #os.environ["CUDA_VISIBLE_DEVICES"]="3"
@@ -178,6 +211,7 @@ def get_scannet_scene_list(split):
     return scene_list
 
 def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes):
+
     if args.no_reference:
         train_scene_list = get_scannet_scene_list("train")
         new_scanrefer_train = []
@@ -225,8 +259,8 @@ def train(args):
     scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
     # solely for quick testing:
     #######################################
-    scanrefer_train = scanrefer_train[:3000]
-    scanrefer_val = scanrefer_val[:1000]
+    #scanrefer_train = scanrefer_train[:3000]
+    #scanrefer_val = scanrefer_val[:1000]
     #######################################
     scanrefer = {
         "train": scanrefer_train,
@@ -255,9 +289,9 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="batch size", default=6) # initially 14
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10) # default 10
-    parser.add_argument("--val_step", type=int, help="iterations of validating", default=3000)
+    parser.add_argument("--val_step", type=int, help="iterations of validating", default=300)
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3) # default 1e-3
-    parser.add_argument("--wd", type=float, help="weight decay", default=1e-12) # default 1e-6
+    parser.add_argument("--wd", type=float, help="weight decay", default=1e-6) # default 1e-6
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")
     parser.add_argument("--num_proposals", type=int, default=256, help="Proposal number [default: 256]")
     parser.add_argument("--num_scenes", type=int, default=-1, help="Number of scenes [default: -1]")

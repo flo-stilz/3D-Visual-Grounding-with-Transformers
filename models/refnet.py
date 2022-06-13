@@ -35,7 +35,7 @@ class RefNet(nn.Module):
 
         # --------- Object Detection ------------
         self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
-        #self.Object_Feature_MLP = nn.Linear(256, 128)
+        self.Object_Feature_MLP = nn.Linear(256, 128)
         # --------- PROPOSAL GENERATION ---------
         # Backbone point feature learning
         '''
@@ -84,7 +84,7 @@ class RefNet(nn.Module):
 
         # --------- 3DETR ----------------
         data_dict = self.Object_Detection(data_dict)
-        #data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_vote_features'])
+        data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_vote_features'])
         '''
         # --------- HOUGH VOTING ---------
         data_dict = self.backbone_net(data_dict)
