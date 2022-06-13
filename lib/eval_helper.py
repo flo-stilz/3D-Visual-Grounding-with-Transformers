@@ -62,6 +62,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
     # no chunking
     else:
+        # Bert or GRU
         if "lang_inputs" in data_dict:
             batch_size, num_words = data_dict["lang_inputs"].shape
         else:
@@ -83,12 +84,24 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         pred_masks = (objectness_preds_batch == 1).float()
         label_masks = (objectness_labels_batch == 1).float()
 
-    cluster_preds = torch.argmax(data_dict["cluster_ref"] * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
+    # this might be wrong: 
+    # chunking
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1,pred_masks.shape[1])
+    else:
+        cluster_preds = torch.argmax(data_dict["cluster_ref"] * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
+
     preds = torch.zeros(pred_masks.shape).cuda()
     preds = preds.scatter_(1, cluster_preds, 1)
     cluster_preds = preds
-    cluster_labels = data_dict["cluster_labels"].float()
-    cluster_labels *= label_masks
+
+    # chunking
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        cluster_labels = data_dict["cluster_labels"].reshape(batch_size*len_nun_max, -1).float()
+    else:
+        cluster_labels = data_dict["cluster_labels"].float()
+        cluster_labels *= label_masks
+
     
     # compute classification scores
     corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
@@ -123,9 +136,19 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         # store the calibrated predictions and masks
         data_dict['cluster_ref'] = cluster_preds
     else:
-        pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
-        # store the calibrated predictions and masks
-        data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
+
+        # chunking
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            pred_mask1 = pred_masks[0].repeat(len_nun_max, 1)
+            for i in range(batch_size):
+                if i != 0:
+                    pred_mask = pred_masks[i].repeat(len_nun_max, 1)
+                    pred_mask1 = torch.cat([pred_mask1, pred_mask], dim=0)
+            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_mask1, 1)  # (B,)
+        else:
+            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
+            # store the calibrated predictions and masks
+            data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
 
     if use_oracle:
         pred_center = data_dict['center_label'] # (B,MAX_NUM_OBJ,3)
@@ -160,7 +183,12 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     data_dict['pred_size_class'] = pred_size_class
     data_dict['pred_size_residual'] = pred_size_residual
 
-    gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
+    # chunking used
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        gt_ref = torch.argmax(data_dict["ref_box_label_list"], -1)
+    else:
+        gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
+
     gt_center = data_dict['center_label'] # (B,MAX_NUM_OBJ,3)
     gt_heading_class = data_dict['heading_class_label'] # B,K2
     gt_heading_residual = data_dict['heading_residual_label'] # B,K2
@@ -172,40 +200,83 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     others = []
     pred_bboxes = []
     gt_bboxes = []
-    for i in range(pred_ref.shape[0]):
-        # compute the iou
-        pred_ref_idx, gt_ref_idx = pred_ref[i], gt_ref[i]
-        pred_obb = config.param2obb(
-            pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(), 
-            pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(), 
-            pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
-            pred_size_class[i, pred_ref_idx].detach().cpu().numpy(), 
-            pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
-        )
-        gt_obb = config.param2obb(
-            gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(), 
-            gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(), 
-            gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
-            gt_size_class[i, gt_ref_idx].detach().cpu().numpy(), 
-            gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
-        )
-        pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
-        gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
-        iou = eval_ref_one_sample(pred_bbox, gt_bbox)
-        ious.append(iou)
 
-        # NOTE: get_3d_box() will return problematic bboxes
-        pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
-        gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
-        pred_bboxes.append(pred_bbox)
-        gt_bboxes.append(gt_bbox)
+    # chunking used
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        pred_ref = pred_ref.reshape(batch_size, len_nun_max)
+        for i in range(batch_size):
+            # compute the iou
+            for j in range(len_nun_max):
+                if j < lang_num[i]:
+                    pred_ref_idx, gt_ref_idx = pred_ref[i][j], gt_ref[i][j]
+                    pred_obb = config.param2obb(
+                        pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(),
+                        pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(),
+                        pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
+                        pred_size_class[i, pred_ref_idx].detach().cpu().numpy(),
+                        pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
+                    )
+                    gt_obb = config.param2obb(
+                        gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(),
+                        gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(),
+                        gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
+                        gt_size_class[i, gt_ref_idx].detach().cpu().numpy(),
+                        gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
+                    )
+                    pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+                    gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+                    iou = eval_ref_one_sample(pred_bbox, gt_bbox)
+                    ious.append(iou)
 
-        # construct the multiple mask
-        multiple.append(data_dict["unique_multiple"][i].item())
+                    # NOTE: get_3d_box() will return problematic bboxes
+                    pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
+                    gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
+                    pred_bboxes.append(pred_bbox)
+                    gt_bboxes.append(gt_bbox)
 
-        # construct the others mask
-        flag = 1 if data_dict["object_cat"][i] == 17 else 0
-        others.append(flag)
+                    # construct the multiple mask
+                    multiple.append(data_dict["unique_multiple_list"][i][j].item())
+
+                    # construct the others mask
+                    flag = 1 if data_dict["object_cat_list"][i][j] == 17 else 0
+                    others.append(flag)
+    else:
+        gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
+
+        for i in range(pred_ref.shape[0]):
+            # compute the iou
+            pred_ref_idx, gt_ref_idx = pred_ref[i], gt_ref[i]
+            pred_obb = config.param2obb(
+                pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(), 
+                pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(), 
+                pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
+                pred_size_class[i, pred_ref_idx].detach().cpu().numpy(), 
+                pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
+            )
+            gt_obb = config.param2obb(
+                gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(), 
+                gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(), 
+                gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
+                gt_size_class[i, gt_ref_idx].detach().cpu().numpy(), 
+                gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
+            )
+            pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+            gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+            iou = eval_ref_one_sample(pred_bbox, gt_bbox)
+            ious.append(iou)
+
+            # NOTE: get_3d_box() will return problematic bboxes
+            pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
+            gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
+            pred_bboxes.append(pred_bbox)
+            gt_bboxes.append(gt_bbox)
+
+            # construct the multiple mask
+            multiple.append(data_dict["unique_multiple"][i].item())
+
+            # construct the others mask
+            flag = 1 if data_dict["object_cat"][i] == 17 else 0
+            others.append(flag)
     '''
     # lang
     if reference and use_lang_classifier:

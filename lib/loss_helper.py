@@ -612,7 +612,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         loss: pytorch scalar tensor
         data_dict: dict
     """
-    '''
+    
     # Vote loss
     vote_loss = compute_vote_loss(data_dict)
 
@@ -631,7 +631,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + 0.1*size_cls_loss + size_reg_loss
     #center_loss, heading_cls_loss, heading_reg_loss, size_reg_loss, sem_cls_loss = compute_box_and_sem_cls_loss(data_dict, config)
     #box_loss = center_loss + 0.1*heading_cls_loss + heading_reg_loss + size_reg_loss
-
+    '''
     # 3DETR Obj detection loss:
     obj_loss, loss_dict = forward(data_dict)
     
@@ -651,8 +651,9 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         data_dict['angle_reg_loss'] = torch.zeros(1)[0].cuda()
         data_dict['sem_cls_loss'] = torch.zeros(1)[0].cuda()
         data_dict['obj_loss'] = torch.zeros(1)[0].cuda()
-    '''
+    
     detection = False
+    '''
     if detection:
         data_dict['vote_loss'] = vote_loss
         data_dict['objectness_loss'] = objectness_loss
@@ -673,7 +674,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         data_dict['size_reg_loss'] = torch.zeros(1)[0].cuda()
         data_dict['sem_cls_loss'] = torch.zeros(1)[0].cuda()
         data_dict['box_loss'] = torch.zeros(1)[0].cuda()
-    reference = False
+
     if reference:
         # Reference loss
         ref_loss, _, cluster_labels = compute_reference_loss(data_dict, config)
@@ -683,27 +684,25 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         # # Reference loss
         # ref_loss, _, cluster_labels = compute_reference_loss(data_dict, config)
         # data_dict["cluster_labels"] = cluster_labels
-        '''
         data_dict["cluster_labels"] = objectness_label.new_zeros(objectness_label.shape).cuda()
         data_dict["cluster_ref"] = objectness_label.new_zeros(objectness_label.shape).float().cuda()
-        '''
+        
         # store
         data_dict["ref_loss"] = torch.zeros(1)[0].cuda()
-    reference = True
+    
     if reference and use_lang_classifier:
         data_dict["lang_loss"] = compute_lang_classification_loss(data_dict)
     else:
         data_dict["lang_loss"] = torch.zeros(1)[0].cuda()
 
     # Final loss function
-    '''
+    
     loss = data_dict['vote_loss'] + 0.5*data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1*data_dict['sem_cls_loss'] \
         + 0.1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"]
     '''
-    loss = data_dict["lang_loss"]
-    # print(f'data_dict["lang_loss"]: {data_dict["lang_loss"]}')
-    # print(f'loss: {loss}')
-
+    loss = 0.5*data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1*data_dict['sem_cls_loss'] \
+        + 0.1*data_dict["lang_loss"]
+    '''
     loss *= 10 # amplify
 
     data_dict['loss'] = loss

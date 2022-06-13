@@ -34,9 +34,9 @@ class RefNet(nn.Module):
         self.no_reference = no_reference
         self.chunking = chunking
         self.lang_module = lang_module
-        '''
+        
         # --------- Object Detection ------------
-        #self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
+        # self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
         # --------- PROPOSAL GENERATION ---------
         # Backbone point feature learning
         self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim)
@@ -46,16 +46,16 @@ class RefNet(nn.Module):
 
         # Vote aggregation and object proposal
         self.proposal = ProposalModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling)
-        '''
+        
         if not no_reference:
             # --------- LANGUAGE ENCODING ---------
             # Encode the input descriptions into vectors
             # (including attention and language classification)
 
             if self.lang_module == 'gru':
-                self.lang = LangModule(num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.chunking)
+                self.lang_encoder = LangModule(num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.chunking)
             elif self.lang_module == 'bert':
-                self.bert = BERTModule(num_class, use_lang_classifier, hidden_size, self.chunking)
+                self.lang_encoder = BERTModule(num_class, use_lang_classifier, hidden_size, self.chunking)
             else:
                 AssertionError
 
@@ -87,7 +87,7 @@ class RefNet(nn.Module):
         #           DETECTION BRANCH          #
         #                                     #
         #######################################
-        '''
+        
         # --------- 3DETR ----------------
         #data_dict = self.Object_Detection(data_dict)
         
@@ -110,7 +110,7 @@ class RefNet(nn.Module):
         # --------- PROPOSAL GENERATION ---------
         data_dict = self.proposal(xyz, features, data_dict)
         
-        '''
+        
         if not self.no_reference:
             #######################################
             #                                     #
@@ -119,12 +119,7 @@ class RefNet(nn.Module):
             #######################################
 
             # --------- LANGUAGE ENCODING ---------
-            if self.lang_module == 'gru':
-                data_dict = self.lang(data_dict)
-            elif self.lang_module == 'bert':
-                data_dict = self.bert(data_dict)
-            else:
-                AssertionError
+            data_dict = self.lang_encoder(data_dict)
 
             #######################################
             #                                     #
@@ -133,6 +128,6 @@ class RefNet(nn.Module):
             #######################################
 
             # --------- PROPOSAL MATCHING ---------
-            #data_dict = self.match(data_dict)
+            data_dict = self.match(data_dict)
 
         return data_dict

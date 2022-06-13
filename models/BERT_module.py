@@ -33,11 +33,9 @@ class BERTModule(nn.Module):
         self.bert = AutoModel.from_pretrained('distilbert-base-cased', config = configuration)
         '''
 
-        self.language_encoder = BertModel.from_pretrained('bert-base-uncased')
-        self.language_encoder.encoder.layer = BertModel(BertConfig()).encoder.layer[:3]
+        self.bert = BertModel.from_pretrained('bert-base-uncased')
+        self.bert.encoder.layer = BertModel(BertConfig()).encoder.layer[:3]
 
-        
-        
         '''
         # freeze some of the BERT weights:
         modules = [self.bert.embeddings, *self.bert.transformer.layer[:4]] 
@@ -80,7 +78,7 @@ class BERTModule(nn.Module):
             lang_mask_list = lang_mask_list.reshape(batch_size * len_nun_max, max_des_len)
 
             # pooled_output = self.bert(input_ids=lang_inputs_list, attention_mask=lang_mask_list,return_dict=False)
-            pooled_output = self.language_encoder(input_ids=lang_inputs_list, attention_mask=lang_mask_list,return_dict=False)
+            pooled_output = self.bert(input_ids=lang_inputs_list, attention_mask=lang_mask_list,return_dict=False)
             lang_last = pooled_output[0]
             # output of CLS Token
             lang_last = lang_last[:,0]
@@ -95,7 +93,6 @@ class BERTModule(nn.Module):
 
 
         else:
-            #lang_feat = data_dict['lang_feat']
             lang_input = data_dict['lang_inputs']
             lang_mask = data_dict['lang_mask']
 

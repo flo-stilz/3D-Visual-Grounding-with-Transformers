@@ -15,7 +15,7 @@ class LangModule(nn.Module):
         self.use_bidir = use_bidir
         self.chunking = chunking
 
-        self.gru = nn.GRU(
+        self.language_encoder = nn.GRU(
             input_size=emb_size,
             hidden_size=hidden_size,
             batch_first=True,
@@ -45,7 +45,7 @@ class LangModule(nn.Module):
 
             lang_feat = pack_padded_sequence(word_embs, lang_len.cpu(), batch_first=True, enforce_sorted=False)
 
-            _, lang_last = self.gru(lang_feat)
+            _, lang_last = self.language_encoder(lang_feat)
 
             data_dict["lang_feat"] = lang_feat
             
@@ -61,7 +61,7 @@ class LangModule(nn.Module):
             lang_feat = pack_padded_sequence(word_embs, data_dict["lang_len"].cpu(), batch_first=True, enforce_sorted=False)
     
             # encode description
-            _, lang_last = self.gru(lang_feat)
+            _, lang_last = self.language_encoder(lang_feat)
             lang_last = lang_last.permute(1, 0, 2).contiguous().flatten(start_dim=1) # batch_size, hidden_size * num_dir
 
             # store the encoded language features

@@ -44,7 +44,7 @@ def get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, split, config
         lang_module = args.lang_module
     )
     # dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     return dataset, dataloader
 
@@ -118,7 +118,24 @@ def get_num_params(model):
 
 def get_solver(args, dataloader):
     model = get_model(args)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    
+    # lr 
+    param_list=[
+            {'params':model.bert.parameters(),'lr':args.lr_bert},
+            {'params':model.MLP.parameters(), 'lr':args.lr},
+            {'params':model.lang_cls.parameters(), 'lr':args.lr},
+            # add the rest and the specific lr rate
+            #{'params':model.obj_feature_mapping.parameters(), 'lr': args.lr},
+            #{'params':model.box_feature_mapping.parameters(), 'lr': args.lr},
+            #{'params':model.language_clf.parameters(), 'lr': args.init_lr},
+            #{'params':model.object_language_clf.parameters(), 'lr': args.init_lr},
+        ]
+    if not args.label_lang_sup:
+        param_list.append( {'params':model.obj_clf.parameters(), 'lr': args.init_lr})
+
+    optimizer = optim.Adam(param_list,lr=args.lr)
+
+    # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -335,7 +352,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="batch size", default=14) # initially 14
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
-    parser.add_argument("--val_step", type=int, help="iterations of validating", default=5000)
+    parser.add_argument("--val_step", type=int, help="iterations of validating", default=250)
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-5)
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")
@@ -358,6 +375,7 @@ if __name__ == "__main__":
     parser.add_argument("--lang_num_max", type=int, help="lang num max", default=32)
     #language module
     parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
+    parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
     args = parser.parse_args()
 
     # setting
