@@ -131,7 +131,7 @@ class Object_Detection(nn.Module):
         self.box_processor = BoxProcessor(dataset_config)
         # there might be no need for this linear layer
         # definitely try also without it
-        self.feature_processor = nn.Linear(256,128)
+        #self.feature_processor = nn.Linear(256,128)
         #self.feature_processor.cuda()
         if hasattr(self.encoder, "masking_radius"):
             hidden_dims = [self.enc_dim]
