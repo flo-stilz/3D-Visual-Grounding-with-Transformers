@@ -24,6 +24,9 @@ lib/pointnet2/pointnet2.egg-info/
 # output
 outputs/
 
+# logs
+logs/
+
 # delete
 docs/.DS_Store
 demo/.DS_Store
