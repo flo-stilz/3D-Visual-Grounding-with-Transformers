@@ -77,7 +77,7 @@ def get_model(args):
             no_reference=True
         )
 
-        pretrained_model = Object_Detection(input_channels)
+        #pretrained_model = Object_Detection(input_channels)
         '''
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
@@ -90,24 +90,21 @@ def get_model(args):
         # 3DETR pretrained:
         #print(pretrained_model)
         '''
-        print(input_channels)
-        print(int(not args.no_height))
         for param in pretrained_model.parameters():
             for weights in param.data:
                 print(weights)
                 break
             break
-        '''
-        #print(pretrained_model.state_dict()['pre_encoder.mlp_module.layer0.conv.weight'])
-        #print(model.Object_Detection)
-        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
+        
+        
+        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
         pre = torch.load(pretrained_path)
 
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
-
-        for key in pre['model']:
+        '''
+        for key in pre:
             sd = pretrained_model.state_dict()
-            sd[key] = pre['model'][key]
+            sd[key] = pre[key]
             pretrained_model.load_state_dict(sd)
         
         # mount
@@ -135,7 +132,6 @@ def get_model(args):
                 param.requires_grad = False
     
     # to CUDA
-    #os.environ["CUDA_VISIBLE_DEVICES"]="3"
     model = model.cuda()
 
     return model
@@ -174,7 +170,8 @@ def get_solver(args, dataloader):
         config=DC, 
         dataloader=dataloader, 
         optimizer=optimizer, 
-        stamp=stamp, 
+        stamp=stamp,
+        args=args,
         val_step=args.val_step,
         detection=not args.no_detection,
         reference=not args.no_reference, 
@@ -303,6 +300,17 @@ if __name__ == "__main__":
     parser.add_argument("--use_bidir", action="store_true", help="Use bi-directional GRU.")
     parser.add_argument("--use_pretrained", type=str, help="Specify the folder name containing the pretrained detection module.")
     parser.add_argument("--use_checkpoint", type=str, help="Specify the checkpoint root", default="")
+    
+    # 3DETR optimizer
+    parser.add_argument("--warm_lr", default=1e-6, type=float)
+    parser.add_argument("--warm_lr_epochs", default=9, type=int)
+    parser.add_argument("--final_lr", default=1e-6, type=float)
+    parser.add_argument("--lr_scheduler", default="cosine", type=str)
+    parser.add_argument("--weight_decay", default=0.1, type=float)
+    parser.add_argument("--filter_biases_wd", default=False, action="store_true")
+    parser.add_argument(
+        "--clip_gradient", default=0.1, type=float, help="Max L2 norm of the gradient"
+    )
     args = parser.parse_args()
 
     # setting

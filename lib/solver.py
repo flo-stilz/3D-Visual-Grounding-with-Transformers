@@ -10,6 +10,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
+import math
 from torch.optim.lr_scheduler import StepLR, MultiStepLR
 
 
@@ -119,8 +120,32 @@ BEST_REPORT_TEMPLATE = """
 """
 dataset_config = build_dataset("scannet")
 
+def compute_learning_rate(args, curr_epoch_normalized):
+    assert curr_epoch_normalized <= 1.0 and curr_epoch_normalized >= 0.0
+    if (
+        curr_epoch_normalized <= (args.warm_lr_epochs / args.epoch)
+        and args.warm_lr_epochs > 0
+    ):
+        # Linear Warmup
+        curr_lr = args.warm_lr + curr_epoch_normalized * args.epoch * (
+            (args.lr - args.warm_lr) / args.warm_lr_epochs
+        )
+    else:
+        # Cosine Learning Rate Schedule
+        curr_lr = args.final_lr + 0.5 * (args.lr - args.final_lr) * (
+            1 + math.cos(math.pi * curr_epoch_normalized)
+        )
+    return curr_lr
+
+
+def adjust_learning_rate(args, optimizer, curr_epoch):
+    curr_lr = compute_learning_rate(args, curr_epoch)
+    for param_group in optimizer.param_groups:
+        param_group["lr"] = curr_lr
+    return curr_lr
+
 class Solver():
-    def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
+    def __init__(self, model, config, dataloader, optimizer, stamp, args, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
     lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None):
 
@@ -132,6 +157,7 @@ class Solver():
         self.dataloader = dataloader
         self.optimizer = optimizer
         self.stamp = stamp
+        self.args = args
         self.val_step = val_step
 
         self.detection = detection
@@ -192,6 +218,7 @@ class Solver():
         self.__epoch_report_template = EPOCH_REPORT_TEMPLATE
         self.__best_report_template = BEST_REPORT_TEMPLATE
 
+        '''
         # lr scheduler
         if lr_decay_step and lr_decay_rate:
             if isinstance(lr_decay_step, list):
@@ -211,6 +238,8 @@ class Solver():
             self.bn_scheduler = BNMomentumScheduler(model, bn_lambda=bn_lbmd, last_epoch=start_epoch-1)
         else:
             self.bn_scheduler = None
+        '''
+        
 
     def __call__(self, epoch, verbose):
         # setting
@@ -233,7 +262,8 @@ class Solver():
                 self._log("saving last models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
                 torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
-
+                
+                '''
                 # update lr scheduler
                 if self.lr_scheduler:
                     print("update learning rate --> {}\n".format(self.lr_scheduler.get_lr()))
@@ -243,7 +273,7 @@ class Solver():
                 if self.bn_scheduler:
                     print("update batch normalization momentum --> {}\n".format(self.bn_scheduler.lmbd(self.bn_scheduler.last_epoch)))
                     self.bn_scheduler.step()
-                
+                '''
             except KeyboardInterrupt:
                 # finish training
                 self._finish(epoch_id)
@@ -300,6 +330,8 @@ class Solver():
         # optimize
         self.optimizer.zero_grad()
         self._running_log["loss"].backward()
+        if self.args.clip_gradient > 0:
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_gradient)
         self.optimizer.step()
 
     def _compute_loss(self, data_dict):
@@ -441,6 +473,9 @@ class Solver():
                 self.log[phase]["iter_time"].append(iter_time)
                 if (self._global_iter_id + 1) % self.verbose == 0:
                     self._train_report(epoch_id)
+                # lr scheduler step:
+                max_iters = len(dataloader)*self.args.epoch # max epochs
+                curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / max_iters)
 
                 # evaluation
                 if self._global_iter_id % self.val_step == 0:
@@ -454,6 +489,7 @@ class Solver():
                 # dump log
                 self._dump_log("train")
                 self._global_iter_id += 1
+            
 
 
         # check best
