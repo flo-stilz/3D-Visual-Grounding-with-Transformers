@@ -142,9 +142,33 @@ def get_num_params(model):
 
     return num_params
 
+def get_optimizer(args, model):
+    params_with_decay = []
+    params_without_decay = []
+    for name, param in model.named_parameters():
+        if param.requires_grad is False:
+            continue
+        if args.filter_biases_wd and (len(param.shape) == 1 or name.endswith("bias")):
+            params_without_decay.append(param)
+        else:
+            params_with_decay.append(param)
+
+    if args.filter_biases_wd:
+        param_groups = [
+            {"params": params_without_decay, "weight_decay": 0.0},
+            {"params": params_with_decay, "weight_decay": args.weight_decay},
+        ]
+    else:
+        param_groups = [
+            {"params": params_with_decay, "weight_decay": args.weight_decay},
+        ]
+    optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
+    return optimizer
+
 def get_solver(args, dataloader):
     model = get_model(args)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    #optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    optimizer = get_optimizer(args, model)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -160,11 +184,12 @@ def get_solver(args, dataloader):
         os.makedirs(root, exist_ok=True)
 
     # scheduler parameters for training solely the detection pipeline
+    '''
     LR_DECAY_STEP = [80, 120, 160] if args.no_reference else None
     LR_DECAY_RATE = 0.1 if args.no_reference else None
     BN_DECAY_STEP = 20 if args.no_reference else None
     BN_DECAY_RATE = 0.5 if args.no_reference else None
-
+    '''
     solver = Solver(
         model=model, 
         config=DC, 
@@ -176,10 +201,10 @@ def get_solver(args, dataloader):
         detection=not args.no_detection,
         reference=not args.no_reference, 
         use_lang_classifier=not args.no_lang_cls,
-        lr_decay_step=LR_DECAY_STEP,
-        lr_decay_rate=LR_DECAY_RATE,
-        bn_decay_step=BN_DECAY_STEP,
-        bn_decay_rate=BN_DECAY_RATE
+        #lr_decay_step=LR_DECAY_STEP,
+        #lr_decay_rate=LR_DECAY_RATE,
+        #bn_decay_step=BN_DECAY_STEP,
+        #bn_decay_rate=BN_DECAY_RATE
     )
     num_params = get_num_params(model)
 

@@ -398,6 +398,9 @@ class Solver():
         dataloader = dataloader if phase == "train" else tqdm(dataloader)
         self.train_iter = 0
         for data_dict in dataloader:
+            # lr scheduler step:
+            max_iters = len(dataloader)*self.args.epoch # max epochs
+            curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / max_iters)
             # move to cuda
             for key in data_dict:
                 data_dict[key] = data_dict[key].cuda()
@@ -473,9 +476,6 @@ class Solver():
                 self.log[phase]["iter_time"].append(iter_time)
                 if (self._global_iter_id + 1) % self.verbose == 0:
                     self._train_report(epoch_id)
-                # lr scheduler step:
-                max_iters = len(dataloader)*self.args.epoch # max epochs
-                curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / max_iters)
 
                 # evaluation
                 if self._global_iter_id % self.val_step == 0:

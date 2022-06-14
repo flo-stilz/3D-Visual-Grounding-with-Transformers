@@ -703,7 +703,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     '''
     loss = 1*obj_loss
     
-    loss *= 10 # amplify
+    #loss *= 10 # amplify
 
     data_dict['loss'] = loss
 
