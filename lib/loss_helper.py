@@ -267,13 +267,16 @@ def compute_reference_loss(data_dict, config, reference=True):
                     pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
                     ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
 
-                    if data_dict["istrain"][0] == 1 and reference and data_dict["random"] < 0.5:
-                        ious = ious * objectness_masks[i]
+                    # increases training difficulty. Could be used
+                    #if data_dict["istrain"][0] == 1 and reference and data_dict["random"] < 0.5:
+                    #    ious = ious * objectness_masks[i]
 
                     ious_ind = ious.argmax()
+                    # clustering ious should match normal ious
+                    labels[j, ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
                     max_ious = ious[ious_ind]
                     if max_ious >= 0.25:
-                        labels[j, ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
+                        # labels[j, ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
                         max_iou_rate_25 += 1
                     if max_ious >= 0.5:
                         max_iou_rate_5 += 1

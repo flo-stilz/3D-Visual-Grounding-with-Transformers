@@ -66,8 +66,7 @@ class RefNet(nn.Module):
             if self.args.match_module == 'scanrefer':
                 self.match = MatchModule(args=self.args, num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
             elif self.args.match_module == 'dvg':
-                pass
-                #self.lang_encoder = DVGMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
+                self.lang_encoder = DVGMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
             else:
                 AssertionError
             # self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)

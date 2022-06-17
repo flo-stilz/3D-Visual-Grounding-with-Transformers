@@ -444,7 +444,7 @@ class Solver():
             "optimizer_state_dict": self.optimizer.state_dict()
         }
         checkpoint_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-        torch.save(save_dict, os.path.join(checkpoint_root, "checkpoint.tar"))
+        #torch.save(save_dict, os.path.join(checkpoint_root, "checkpoint.tar"))
 
         # save model
         self._log("saving last models...\n")

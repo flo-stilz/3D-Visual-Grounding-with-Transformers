@@ -7,7 +7,7 @@ import random
 
 
 class DVGMatchModule(nn.Module):
-    def __init__(self, num_proposals=256, lang_size=256, hidden_size=128, lang_num_size=300, det_channel=288*4, head=4, depth=2):
+    def __init__(self, args, num_proposals=256, lang_size=256, hidden_size=128, lang_num_size=300, det_channel=288*4, head=4, depth=2):
         super().__init__()
         self.use_dist_weight_matrix = True  ## False: initial 3DVG-Transformer
 
@@ -67,6 +67,14 @@ class DVGMatchModule(nn.Module):
             dist_weights = None
             attention_matrix_way = 'mul'
 
+        objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
+        if self.args.detection_module == 'detr':
+            features = data_dict['detr_features']
+        elif self.args.detection_module == 'votenet':
+            features = data_dict['aggregated_vote_features'] # batch_size, num_proposal, 128
+        else:
+            AssertionError
+
 
         # object size embedding
         # print(data_dict.keys())
@@ -84,13 +92,31 @@ class DVGMatchModule(nn.Module):
         #features = self.mhatt(features, features, features, proposal_masks)
         features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
 
-        len_nun_max = data_dict["lang_feat_list"].shape[1]
+        #len_nun_max = data_dict["lang_feat_list"].shape[1]
+        if self.args.use_chunking:
+            data_dict["random"] = random.random()
+            batchsize, len_nun_max = data_dict["lang_feat_list"].shape[:2]
+            # print(f'batchsize, len_nun_max: {batchsize}, {len_nun_max}')
+            features = features.unsqueeze(1).repeat(1, len_nun_max, 1, 1)
+            v1, v2, v3, v4 = features.shape[:4]
+            #print(f'v1: {v1}, v2: {v2}, v3: {v3}, v4: {v4}') # batchsize, len_nun
+            features = features.reshape(batchsize * len_nun_max, v3, v4)
+            #print(f'feature shape after unsquezze: {features.shape}')
+            #print(f'objectness_masks shape before unsquezze: {objectness_masks.shape}')
+            objectness_masks = objectness_masks.unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
+            #print(f'objectness_masks shape after unsquezze: {objectness_masks.shape}')
+        else:
+            pass
+
+        #print(f'lang_feat shape: {lang_feat.shape}')
+        lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size, num_proposals, lang_size
 
         #objectness_masks = objectness_masks.permute(0, 2, 1).contiguous()  # batch_size, 1, num_proposals
         data_dict["random"] = random.random()
 
         # copy paste
-        feature0 = features.clone()
+        #feature0 = features.clone()
+        ''' This is some random application of objectness mask
         if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
             obj_masks = objectness_masks.bool().squeeze(2)  # batch_size, num_proposals
             obj_lens = torch.zeros(batch_size, dtype=torch.int).cuda()
@@ -113,12 +139,14 @@ class DVGMatchModule(nn.Module):
                     feature0[i, obj_mask, :] = obj_features[j:j + obj_len, :]
                 else:
                     feature0[i, obj_mask[:total_len - obj_lens[i]], :] = obj_features[j:j + total_len - obj_lens[i], :]
+        '''
+        #feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
+        feature1 = features
 
-        feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
         if dist_weights is not None:
             dist_weights = dist_weights[:, None, :, :, :].repeat(1, len_nun_max, 1, 1, 1).reshape(batch_size*len_nun_max, dist_weights.shape[1], num_proposal, num_proposal)
 
-        lang_fea = data_dict["lang_fea"]
+        lang_fea = data_dict["lang_fea"] # batch_size * len_nun_max, lang_size
         # print("features", features.shape, lang_fea.shape)
 
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])

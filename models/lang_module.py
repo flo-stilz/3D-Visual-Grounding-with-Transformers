@@ -45,7 +45,23 @@ class LangModule(nn.Module):
 
             lang_feat = pack_padded_sequence(word_embs, lang_len.cpu(), batch_first=True, enforce_sorted=False)
 
-            _, lang_last = self.language_encoder(lang_feat)
+            out, lang_last = self.language_encoder(lang_feat)
+
+            # --------- Attention Mask ---------
+
+            padded = pad_packed_sequence(out, batch_first=True)
+            cap_emb, cap_len = padded
+            if self.use_bidir:
+                cap_emb = (cap_emb[:, :, :int(cap_emb.shape[2] / 2)] + cap_emb[:, :, int(cap_emb.shape[2] / 2):]) / 2
+
+            b_s, seq_len = cap_emb.shape[:2]
+            mask_queries = torch.ones((b_s, seq_len), dtype=torch.int)
+            for i in range(b_s):
+                mask_queries[i, cap_len[i]:] = 0
+            attention_mask = (mask_queries == 0).unsqueeze(1).unsqueeze(1).cuda()  # (b_s, 1, 1, seq_len)
+            data_dict["attention_mask"] = attention_mask
+
+            # --------- End ---------
 
             data_dict["lang_feat"] = lang_feat
             

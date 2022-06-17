@@ -8,6 +8,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import numpy as np
+import tensorflow as tf
 
 from torch.utils.data import DataLoader
 from datetime import datetime
@@ -122,16 +123,30 @@ def get_num_params(model):
 def get_solver(args, dataloader):
     model = get_model(args)
     
-    # lr 
-    param_list=[
-            {'params':model.backbone_net.parameters(), 'lr':args.lr},
-            {'params':model.vgen.parameters(), 'lr':args.lr},
-            {'params':model.proposal.parameters(), 'lr': args.lr},
-            {'params':model.lang_encoder.parameters(), 'lr': args.lr},
-            {'params':model.match.parameters(), 'lr': args.lr},
-            #{'params':model.object_language_clf.parameters(), 'lr': args.init_lr},
-        ]
-    # this does not work yet
+    # learning rate 
+    if args.use_chunking:  
+        param_list=[
+                {'params':model.backbone_net.parameters(), 'lr':args.lr * 10},
+                {'params':model.vgen.parameters(), 'lr':args.lr * 10},
+                {'params':model.proposal.parameters(), 'lr': args.lr * 10},
+                {'params':model.match.parameters(), 'lr': args.lr * 10},
+            ]
+        if args.lang_module == 'bert':
+            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr_bert})
+        else:
+            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr})
+    else:
+        param_list=[
+                {'params':model.backbone_net.parameters(), 'lr':args.lr},
+                {'params':model.vgen.parameters(), 'lr':args.lr},
+                {'params':model.proposal.parameters(), 'lr': args.lr},
+                {'params':model.match.parameters(), 'lr': args.lr},
+            ]
+        if args.lang_module == 'bert':
+            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr_bert})
+        else:
+            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr})
+
     #if not args.label_lang_sup:
     #    param_list.append( {'params':model.obj_clf.parameters(), 'lr': args.init_lr})
     #if args.lang_module == 'bert':
@@ -179,9 +194,9 @@ def get_solver(args, dataloader):
     )
     num_params = get_num_params(model)
 
-    return solver, num_params, root
+    return solver, num_params, root, param_list
 
-def save_info(args, root, num_params, train_dataset, val_dataset):
+def save_info(args, root, num_params, train_dataset, val_dataset, param_list):
     info = {}
     for key, value in vars(args).items():
         info[key] = value
@@ -194,6 +209,17 @@ def save_info(args, root, num_params, train_dataset, val_dataset):
 
     with open(os.path.join(root, "info.json"), "w") as f:
         json.dump(info, f, indent=4)
+    
+    writer1 = tf.summary.create_file_writer(root + '/config')
+    write_string_summary_v2(writer1, get_summary_str(args, param_list))
+    '''
+    file_writer = tf.summary.create_file_writer(logdir)
+
+    # Using the file writer, log the text.
+    with file_writer.as_default():
+        tf.summary.text("first_text", my_text, step=0)
+    '''
+
 
 def get_scannet_scene_list(split):
     scene_list = sorted([line.rstrip() for line in open(os.path.join(CONF.PATH.SCANNET_META, "scannetv2_{}.txt".format(split)))])
@@ -296,17 +322,28 @@ def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes, lang_num_max):
         print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))
         return new_scanrefer_train, new_scanrefer_val, all_scene_list
 
+def write_string_summary_v2(writer, s):
+    with writer.as_default():
+        tf.summary.text('Model configuration', s, step=0)
+
+# Get model summary as a string
+def get_summary_str(args, param_list):
+    lines = []
+    string = ''
+    for key, value in vars(args).items():
+        string += f'{key}: {value} |'
+    lines.append(string)
+    # geht so nicht auf jeden fall
+    # lines.append(str(param_list))
+    # Add initial spaces to avoid markdown formatting in TensorBoard
+    return '    ' + '\n    '.join(lines)
+
 def train(args):
     # init training dataset
     print("preparing data...")
     if args.use_chunking:
         scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_new, scanrefer_val_new = get_scanrefer(
         SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
-
-        # quick testing
-        # with chunking doesn't work yet
-        #scanrefer_train = scanrefer_train[:3000]
-        #scanrefer_val = scanrefer_val[:3000]
 
         scanrefer = {
             "train": scanrefer_train,
@@ -326,11 +363,7 @@ def train(args):
         }
     else:
         scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
-        
-        # quick testing
-        #scanrefer_train = scanrefer_train[:3000]
-        #scanrefer_val = scanrefer_val[:3000]
-        
+
         scanrefer = {
             "train": scanrefer_train,
             "val": scanrefer_val
@@ -345,10 +378,11 @@ def train(args):
         }
 
     print("initializing...")
-    solver, num_params, root = get_solver(args, dataloader)
+    solver, num_params, root, param_list = get_solver(args, dataloader)
 
     print("Start training...\n")
-    save_info(args, root, num_params, train_dataset, val_dataset)
+
+    save_info(args, root, num_params, train_dataset, val_dataset, param_list)
     solver(args.epoch, args.verbose)
 
 if __name__ == "__main__":
