@@ -56,13 +56,14 @@ def get_model(args):
         num_heading_bin=DC.num_heading_bin,
         num_size_cluster=DC.num_size_cluster,
         mean_size_arr=DC.mean_size_arr,
+        args = args,
         input_feature_dim=input_channels,
         num_proposal=args.num_proposals,
         use_lang_classifier=(not args.no_lang_cls),
         use_bidir=args.use_bidir,
         no_reference=args.no_reference,
         chunking = args.use_chunking,
-        lang_module = args.lang_module
+        lang_module = args.lang_module,
     )
 
     # trainable model
@@ -74,11 +75,13 @@ def get_model(args):
             num_heading_bin=DC.num_heading_bin,
             num_size_cluster=DC.num_size_cluster,
             mean_size_arr=DC.mean_size_arr,
+            args = args,
             num_proposal=args.num_proposals,
             input_feature_dim=input_channels,
             use_bidir=args.use_bidir,
             no_reference=True,
-            chunking = args.use_chunking
+            chunking = args.use_chunking,
+            lang_module = args.lang_module,
         )
 
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
@@ -121,21 +124,24 @@ def get_solver(args, dataloader):
     
     # lr 
     param_list=[
-            {'params':model.bert.parameters(),'lr':args.lr_bert},
-            {'params':model.MLP.parameters(), 'lr':args.lr},
-            {'params':model.lang_cls.parameters(), 'lr':args.lr},
-            # add the rest and the specific lr rate
-            #{'params':model.obj_feature_mapping.parameters(), 'lr': args.lr},
-            #{'params':model.box_feature_mapping.parameters(), 'lr': args.lr},
-            #{'params':model.language_clf.parameters(), 'lr': args.init_lr},
+            {'params':model.backbone_net.parameters(), 'lr':args.lr},
+            {'params':model.vgen.parameters(), 'lr':args.lr},
+            {'params':model.proposal.parameters(), 'lr': args.lr},
+            {'params':model.lang_encoder.parameters(), 'lr': args.lr},
+            {'params':model.match.parameters(), 'lr': args.lr},
             #{'params':model.object_language_clf.parameters(), 'lr': args.init_lr},
         ]
-    if not args.label_lang_sup:
-        param_list.append( {'params':model.obj_clf.parameters(), 'lr': args.init_lr})
+    # this does not work yet
+    #if not args.label_lang_sup:
+    #    param_list.append( {'params':model.obj_clf.parameters(), 'lr': args.init_lr})
+    #if args.lang_module == 'bert':
+    #    param_list.append( {'params':model.lang_module.parameters(),'lr':args.lr_bert})
 
-    optimizer = optim.Adam(param_list,lr=args.lr)
+    optimizer = optim.Adam(param_list,lr=args.lr, weight_decay=args.wd)
+    
+    # print(f'params pointnet: {model.backbone_net.parameters()}')
 
-    # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    #optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -376,6 +382,8 @@ if __name__ == "__main__":
     #language module
     parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
     parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
+    #match module
+    parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
     args = parser.parse_args()
 
     # setting

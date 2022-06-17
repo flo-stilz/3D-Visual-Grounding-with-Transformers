@@ -205,8 +205,8 @@ class ScannetReferenceDataset(Dataset):
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
         # Addition of 3DETR:
-        raw_sizes = np.zeros((MAX_NUM_OBJ, 3), dtype=np.float32)
-        raw_angles = np.zeros((MAX_NUM_OBJ,), dtype=np.float32)
+        #raw_sizes = np.zeros((MAX_NUM_OBJ, 3), dtype=np.float32)
+        #raw_angles = np.zeros((MAX_NUM_OBJ,), dtype=np.float32)
 
         if self.chunking:
             ref_box_label_list = []

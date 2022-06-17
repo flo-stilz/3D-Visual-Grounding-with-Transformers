@@ -20,10 +20,12 @@ from scipy.optimize import linear_sum_assignment
 from DETR.utils.dist import all_reduce_average
 
 FAR_THRESHOLD = 0.6
+# FAR_THRESHOLD = 0.3 # from dvg try once
 NEAR_THRESHOLD = 0.3
 GT_VOTE_FACTOR = 3 # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8] # put larger weights on positive objectness
 
+# checked this for chunking
 def compute_vote_loss(data_dict):
     """ Compute vote loss: Match predicted votes to GT votes.
 
@@ -47,9 +49,9 @@ def compute_vote_loss(data_dict):
 
     # Load ground truth votes and assign them to seed points
     batch_size = data_dict['seed_xyz'].shape[0]
-    num_seed = data_dict['seed_xyz'].shape[1] # B,num_seed,3
-    vote_xyz = data_dict['vote_xyz'] # B,num_seed*vote_factor,3
-    seed_inds = data_dict['seed_inds'].long() # B,num_seed in [0,num_points-1]
+    num_seed = data_dict['seed_xyz'].shape[1]  # B,num_seed,3
+    vote_xyz = data_dict['vote_xyz']  # B,num_seed*vote_factor,3
+    seed_inds = data_dict['seed_inds'].long()  # B,num_seed in [0,num_points-1]
 
     # Get groundtruth votes for the seed points
     # vote_label_mask: Use gather to select B,num_seed from B,num_point
@@ -71,6 +73,7 @@ def compute_vote_loss(data_dict):
     vote_loss = torch.sum(votes_dist*seed_gt_votes_mask.float())/(torch.sum(seed_gt_votes_mask.float())+1e-6)
     return vote_loss
 
+# chunking checked
 def compute_objectness_loss(data_dict):
     """ Compute objectness loss for the proposals.
 
@@ -193,7 +196,7 @@ def compute_box_and_sem_cls_loss(data_dict, config):
     return center_loss, heading_class_loss, heading_residual_normalized_loss, size_class_loss, size_residual_normalized_loss, sem_cls_loss
     #return center_loss, heading_class_loss, heading_residual_normalized_loss, size_residual_normalized_loss, sem_cls_loss
 
-def compute_reference_loss(data_dict, config):
+def compute_reference_loss(data_dict, config, reference=True):
     """ Compute cluster reference loss
 
     Args:
@@ -203,50 +206,121 @@ def compute_reference_loss(data_dict, config):
         ref_loss, lang_loss, cluster_preds, cluster_labels
     """
 
-    # unpack
-    cluster_preds = data_dict["cluster_ref"] # (B, num_proposal)
+    if "object_cat_list" in data_dict:
+        pass
+    else:
+        # unpack
+        cluster_preds = data_dict["cluster_ref"] # (B, num_proposal)
 
-    # predicted bbox
-    pred_ref = data_dict['cluster_ref'].detach().cpu().numpy() # (B,)
-    pred_center = data_dict['center'].detach().cpu().numpy() # (B,K,3)
-    pred_heading_class = torch.argmax(data_dict['heading_scores'], -1) # B,num_proposal
-    pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
-    pred_heading_class = pred_heading_class.detach().cpu().numpy() # B,num_proposal
-    pred_heading_residual = pred_heading_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal
-    pred_size_class = torch.argmax(data_dict['size_scores'], -1) # B,num_proposal
-    pred_size_residual = torch.gather(data_dict['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
+        # predicted bbox
+        pred_ref = data_dict['cluster_ref'].detach().cpu().numpy() # (B,)
+    
+    pred_center = data_dict['center'].detach().cpu().numpy()  # (B,K,3)
+    pred_heading_class = torch.argmax(data_dict['heading_scores'], -1)  # B,num_proposal
+    pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2,
+                                         pred_heading_class.unsqueeze(-1))  # B,num_proposal,1
+    pred_heading_class = pred_heading_class.detach().cpu().numpy()  # B,num_proposal
+    pred_heading_residual = pred_heading_residual.squeeze(2).detach().cpu().numpy()  # B,num_proposal
+    pred_size_class = torch.argmax(data_dict['size_scores'], -1)  # B,num_proposal
+    pred_size_residual = torch.gather(data_dict['size_residuals'], 2,
+                                      pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, 1,
+                                                                                        3))  # B,num_proposal,1,3
     pred_size_class = pred_size_class.detach().cpu().numpy()
-    pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal,3
+    pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy()  # B,num_proposal,3
 
     # ground truth bbox
-    gt_center = data_dict['ref_center_label'].cpu().numpy() # (B,3)
-    gt_heading_class = data_dict['ref_heading_class_label'].cpu().numpy() # B
-    gt_heading_residual = data_dict['ref_heading_residual_label'].cpu().numpy() # B
-    gt_size_class = data_dict['ref_size_class_label'].cpu().numpy() # B
-    gt_size_residual = data_dict['ref_size_residual_label'].cpu().numpy() # B,3
-    # convert gt bbox parameters to bbox corners
-    gt_obb_batch = config.param2obb_batch(gt_center[:, 0:3], gt_heading_class, gt_heading_residual,
-                    gt_size_class, gt_size_residual)
-    gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
+    if "object_cat_list" in data_dict:
+        gt_center_list = data_dict['ref_center_label_list'].cpu().numpy()  # (B,3)
+        gt_heading_class_list = data_dict['ref_heading_class_label_list'].cpu().numpy()  # B
+        gt_heading_residual_list = data_dict['ref_heading_residual_label_list'].cpu().numpy()  # B
+        gt_size_class_list = data_dict['ref_size_class_label_list'].cpu().numpy()  # B
+        gt_size_residual_list = data_dict['ref_size_residual_label_list'].cpu().numpy()  # B,3
+        # convert gt bbox parameters to bbox corners
+        batch_size, num_proposals = data_dict['aggregated_vote_features'].shape[:2]
+        batch_size, len_nun_max = gt_center_list.shape[:2]
+        lang_num = data_dict["lang_num"]
+        max_iou_rate_25 = 0
+        max_iou_rate_5 = 0
 
-    # compute the iou score for all predictd positive ref
-    batch_size, num_proposals = cluster_preds.shape
-    labels = np.zeros((batch_size, num_proposals))
-    for i in range(pred_ref.shape[0]):
-        # convert the bbox parameters to bbox corners
-        pred_obb_batch = config.param2obb_batch(pred_center[i, :, 0:3], pred_heading_class[i], pred_heading_residual[i],
-                    pred_size_class[i], pred_size_residual[i])
-        pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
-        ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
-        labels[i, ious.argmax()] = 1 # treat the bbox with highest iou score as the gt
+        if reference:
+            cluster_preds = data_dict["cluster_ref"].reshape(batch_size, len_nun_max, num_proposals)
+        else:
+            cluster_preds = torch.zeros(batch_size, len_nun_max, num_proposals).cuda()
 
-    cluster_labels = torch.FloatTensor(labels).cuda()
+        # print("cluster_preds",cluster_preds.shape)
+        criterion = SoftmaxRankingLoss()
+        loss = 0.
+        gt_labels = np.zeros((batch_size, len_nun_max, num_proposals))
+        for i in range(batch_size):
+            objectness_masks = data_dict['objectness_scores'].max(2)[1].float().cpu().numpy() # batch_size, num_proposals
+            gt_obb_batch = config.param2obb_batch(gt_center_list[i][:, 0:3], gt_heading_class_list[i],
+                                                gt_heading_residual_list[i],
+                                                gt_size_class_list[i], gt_size_residual_list[i])
+            gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
+            labels = np.zeros((len_nun_max, num_proposals))
+            for j in range(len_nun_max):
+                if j < lang_num[i]:
+                    # convert the bbox parameters to bbox corners
+                    pred_obb_batch = config.param2obb_batch(pred_center[i, :, 0:3], pred_heading_class[i],
+                                                            pred_heading_residual[i],
+                                                            pred_size_class[i], pred_size_residual[i])
+                    pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
+                    ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
 
-    # reference loss
-    criterion = SoftmaxRankingLoss()
-    loss = criterion(cluster_preds, cluster_labels.float().clone())
+                    if data_dict["istrain"][0] == 1 and reference and data_dict["random"] < 0.5:
+                        ious = ious * objectness_masks[i]
 
-    return loss, cluster_preds, cluster_labels
+                    ious_ind = ious.argmax()
+                    max_ious = ious[ious_ind]
+                    if max_ious >= 0.25:
+                        labels[j, ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
+                        max_iou_rate_25 += 1
+                    if max_ious >= 0.5:
+                        max_iou_rate_5 += 1
+
+            cluster_labels = torch.FloatTensor(labels).cuda()  # B proposals
+            gt_labels[i] = labels
+            # reference loss
+            loss += criterion(cluster_preds[i, :lang_num[i]], cluster_labels[:lang_num[i]].float().clone())
+
+        data_dict['max_iou_rate_0.25'] = max_iou_rate_25 / sum(lang_num.cpu().numpy())
+        data_dict['max_iou_rate_0.5'] = max_iou_rate_5 / sum(lang_num.cpu().numpy())
+
+        # print("max_iou_rate", data_dict['max_iou_rate_0.25'], data_dict['max_iou_rate_0.5'])
+        cluster_labels = torch.FloatTensor(gt_labels).cuda()  # B len_nun_max proposals
+        # print("cluster_labels", cluster_labels.shape)
+        loss = loss / batch_size
+        # print("ref_loss", loss)
+        return loss, cluster_preds, cluster_labels
+    else:
+        gt_center = data_dict['ref_center_label'].cpu().numpy() # (B,3)
+        gt_heading_class = data_dict['ref_heading_class_label'].cpu().numpy() # B
+        gt_heading_residual = data_dict['ref_heading_residual_label'].cpu().numpy() # B
+        gt_size_class = data_dict['ref_size_class_label'].cpu().numpy() # B
+        gt_size_residual = data_dict['ref_size_residual_label'].cpu().numpy() # B,3
+        # convert gt bbox parameters to bbox corners
+        gt_obb_batch = config.param2obb_batch(gt_center[:, 0:3], gt_heading_class, gt_heading_residual,
+                        gt_size_class, gt_size_residual)
+        gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
+
+        # compute the iou score for all predictd positive ref
+        batch_size, num_proposals = cluster_preds.shape
+        labels = np.zeros((batch_size, num_proposals))
+        for i in range(pred_ref.shape[0]):
+            # convert the bbox parameters to bbox corners
+            pred_obb_batch = config.param2obb_batch(pred_center[i, :, 0:3], pred_heading_class[i], pred_heading_residual[i],
+                        pred_size_class[i], pred_size_residual[i])
+            pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
+            ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
+            labels[i, ious.argmax()] = 1 # treat the bbox with highest iou score as the gt
+
+        cluster_labels = torch.FloatTensor(labels).cuda()
+
+        # reference loss
+        criterion = SoftmaxRankingLoss()
+        loss = criterion(cluster_preds, cluster_labels.float().clone())
+
+        return loss, cluster_preds, cluster_labels
 
 def compute_lang_classification_loss(data_dict):
     criterion = torch.nn.CrossEntropyLoss()
@@ -696,7 +770,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         data_dict["lang_loss"] = torch.zeros(1)[0].cuda()
 
     # Final loss function
-    
+
     loss = data_dict['vote_loss'] + 0.5*data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1*data_dict['sem_cls_loss'] \
         + 0.1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"]
     '''

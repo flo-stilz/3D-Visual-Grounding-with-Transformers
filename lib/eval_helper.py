@@ -68,7 +68,6 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         else:
             batch_size, num_words, _ = data_dict["lang_feat"].shape
 
-    '''
     objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
     objectness_labels_batch = data_dict['objectness_label'].long()
     
@@ -88,16 +87,18 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     # chunking
     if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
         cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1,pred_masks.shape[1])
+        preds = torch.zeros(data_dict["cluster_ref"].shape).cuda()
     else:
         cluster_preds = torch.argmax(data_dict["cluster_ref"] * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
-
-    preds = torch.zeros(pred_masks.shape).cuda()
+        preds = torch.zeros(pred_masks.shape).cuda()
+    
     preds = preds.scatter_(1, cluster_preds, 1)
     cluster_preds = preds
 
     # chunking
     if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
         cluster_labels = data_dict["cluster_labels"].reshape(batch_size*len_nun_max, -1).float()
+        # cluster_labels *= label_masks
     else:
         cluster_labels = data_dict["cluster_labels"].float()
         cluster_labels *= label_masks
@@ -113,7 +114,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
 
     # compute localization metrics
     if use_best:
-        pred_ref = torch.argmax(data_dict["cluster_labels"], 1) # (B,)
+        pred_ref = torch.argmax(data_dict["cluster_labels"], 1)  # (B,)
         # store the calibrated predictions and masks
         data_dict['cluster_ref'] = data_dict["cluster_labels"]
     if use_cat_rand:
@@ -123,7 +124,8 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             sem_cls_label = data_dict["sem_cls_label"][i]
             # sem_cls_label = torch.argmax(end_points["sem_cls_scores"], 2)[i]
             sem_cls_label[num_bbox:] -= 1
-            candidate_masks = torch.gather(sem_cls_label == data_dict["object_cat"][i], 0, data_dict["object_assignment"][i])
+            candidate_masks = torch.gather(sem_cls_label == data_dict["object_cat"][i], 0, 
+                                            data_dict["object_assignment"][i])
             candidates = torch.arange(cluster_labels.shape[1])[candidate_masks]
             try:
                 chosen_idx = torch.randperm(candidates.shape[0])[0]
@@ -132,7 +134,10 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             except IndexError:
                 cluster_preds[i, candidates] = 1
         
-        pred_ref = torch.argmax(cluster_preds, 1) # (B,)
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            pred_ref = torch.argmax(cluster_preds, -1)  # (B,)
+        else:
+            pred_ref = torch.argmax(cluster_preds, 1) # (B,)
         # store the calibrated predictions and masks
         data_dict['cluster_ref'] = cluster_preds
     else:
@@ -151,28 +156,29 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
 
     if use_oracle:
-        pred_center = data_dict['center_label'] # (B,MAX_NUM_OBJ,3)
-        pred_heading_class = data_dict['heading_class_label'] # B,K2
-        pred_heading_residual = data_dict['heading_residual_label'] # B,K2
-        pred_size_class = data_dict['size_class_label'] # B,K2
-        pred_size_residual = data_dict['size_residual_label'] # B,K2,3
+        pred_center = data_dict['center_label']  # (B,MAX_NUM_OBJ,3)
+        pred_heading_class = data_dict['heading_class_label']  # B,K2
+        pred_heading_residual = data_dict['heading_residual_label']  # B,K2
+        pred_size_class = data_dict['size_class_label']  # B,K2
+        pred_size_residual = data_dict['size_residual_label']  # B,K2,3
 
         # assign
         pred_center = torch.gather(pred_center, 1, data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
         pred_heading_class = torch.gather(pred_heading_class, 1, data_dict["object_assignment"])
         pred_heading_residual = torch.gather(pred_heading_residual, 1, data_dict["object_assignment"]).unsqueeze(-1)
         pred_size_class = torch.gather(pred_size_class, 1, data_dict["object_assignment"])
-        pred_size_residual = torch.gather(pred_size_residual, 1, data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
+        pred_size_residual = torch.gather(pred_size_residual, 1, 
+                                        data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
     else:
-        pred_center = data_dict['center'] # (B,K,3)
-        pred_heading_class = torch.argmax(data_dict['heading_scores'], -1) # B,num_proposal
+        pred_center = data_dict['center']  # (B,K,3)
+        pred_heading_class = torch.argmax(data_dict['heading_scores'], -1)  # B,num_proposal
         pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
         pred_heading_class = pred_heading_class # B,num_proposal
         pred_heading_residual = pred_heading_residual.squeeze(2) # B,num_proposal
         pred_size_class = torch.argmax(data_dict['size_scores'], -1) # B,num_proposal
         pred_size_residual = torch.gather(data_dict['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
         pred_size_class = pred_size_class
-        pred_size_residual = pred_size_residual.squeeze(2) # B,num_proposal,3
+        pred_size_residual = pred_size_residual.squeeze(2)  # B,num_proposal,3
 
     # store
     data_dict["pred_mask"] = pred_masks
@@ -203,6 +209,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
 
     # chunking used
     if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        lang_num = data_dict["lang_num"]
         pred_ref = pred_ref.reshape(batch_size, len_nun_max)
         for i in range(batch_size):
             # compute the iou
@@ -277,7 +284,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             # construct the others mask
             flag = 1 if data_dict["object_cat"][i] == 17 else 0
             others.append(flag)
-    '''
+    
     # lang
     if reference and use_lang_classifier:
         # chunking used
@@ -289,7 +296,6 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     else:
         data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
 
-    '''
     # store
     data_dict["ref_iou"] = ious
     data_dict["ref_iou_rate_0.25"] = np.array(ious)[np.array(ious) >= 0.25].shape[0] / np.array(ious).shape[0]
@@ -309,5 +315,4 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1) # (B,K)
     sem_match = (sem_cls_label == sem_cls_pred).float()
     data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
-    '''
     return data_dict

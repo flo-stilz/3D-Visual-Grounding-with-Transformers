@@ -10,11 +10,12 @@ from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.lang_module import LangModule
 from models.match_module import MatchModule
+from models.dvg_match_module import DVGMatchModule
 from models.Object_Detection import Object_Detection
 from models.BERT_module import BERTModule
 
 class RefNet(nn.Module):
-    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, 
+    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, args,
     input_feature_dim=0, num_proposal=128, vote_factor=1, sampling="vote_fps",
     use_lang_classifier=True, use_bidir=False, no_reference=False, chunking = False,
     emb_size=300, hidden_size=256, lang_module='gru'):
@@ -34,6 +35,7 @@ class RefNet(nn.Module):
         self.no_reference = no_reference
         self.chunking = chunking
         self.lang_module = lang_module
+        self.args = args
         
         # --------- Object Detection ------------
         # self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
@@ -52,16 +54,23 @@ class RefNet(nn.Module):
             # Encode the input descriptions into vectors
             # (including attention and language classification)
 
-            if self.lang_module == 'gru':
+            if self.args.lang_module == 'gru':
                 self.lang_encoder = LangModule(num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.chunking)
-            elif self.lang_module == 'bert':
+            elif self.args.lang_module == 'bert':
                 self.lang_encoder = BERTModule(num_class, use_lang_classifier, hidden_size, self.chunking)
             else:
                 AssertionError
 
             # --------- PROPOSAL MATCHING ---------
             # Match the generated proposals and select the most confident ones
-            #self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
+            if self.args.match_module == 'scanrefer':
+                self.match = MatchModule(args=self.args, num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
+            elif self.args.match_module == 'dvg':
+                pass
+                #self.lang_encoder = DVGMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
+            else:
+                AssertionError
+            # self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
 
     def forward(self, data_dict):
         """ Forward pass of the network

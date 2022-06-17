@@ -102,7 +102,7 @@ class BERTModule(nn.Module):
             # For DistilBERT
 
             # pooled_output = self.bert(input_ids=lang_input, attention_mask=lang_mask,return_dict=False)
-            pooled_output = self.language_encoder(input_ids=lang_input, attention_mask=lang_mask,return_dict=False)
+            pooled_output = self.bert(input_ids=lang_input, attention_mask=lang_mask,return_dict=False)
             lang_last = pooled_output[0]
             # output of CLS Token
             lang_last = lang_last[:,0]

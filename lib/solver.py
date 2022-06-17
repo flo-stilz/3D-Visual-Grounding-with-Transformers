@@ -84,36 +84,6 @@ BEST_REPORT_TEMPLATE = """
 [sco.] iou_rate_0.25: {iou_rate_25}, iou_rate_0.5: {iou_rate_5}
 """
 
-# Duplicates:
-EPOCH_REPORT_TEMPLATE = """
----------------------------------summary---------------------------------
-[train] train_loss: {train_loss}
-[train] train_lang_loss: {train_lang_loss}
-[train] train_lang_acc: {train_lang_acc}
-[val]   val_loss: {val_loss}
-[val]   val_lang_loss: {val_lang_loss}
-[val]   val_lang_acc: {val_lang_acc}
-"""
-ITER_REPORT_TEMPLATE = """
--------------------------------iter: [{epoch_id}: {iter_id}/{total_iter}]-------------------------------
-[loss] train_loss: {train_loss}
-[loss] train_lang_loss: {train_lang_loss}
-[loss] train_lang_acc: {train_lang_acc}
-[info] mean_fetch_time: {mean_fetch_time}s
-[info] mean_forward_time: {mean_forward_time}s
-[info] mean_backward_time: {mean_backward_time}s
-[info] mean_eval_time: {mean_eval_time}s
-[info] mean_iter_time: {mean_iter_time}s
-[info] ETA: {eta_h}h {eta_m}m {eta_s}s
-"""
-BEST_REPORT_TEMPLATE = """
---------------------------------------best--------------------------------------
-[best] epoch: {epoch}
-[loss] loss: {loss}
-[loss] lang_loss: {lang_loss}
-[loss] lang_acc: {lang_acc}
-"""
-
 class Solver():
     def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
@@ -225,7 +195,7 @@ class Solver():
                 # save model
                 self._log("saving last models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-                torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
+                #torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
 
                 # update lr scheduler
                 if self.lr_scheduler:
@@ -384,7 +354,6 @@ class Solver():
             self.log[phase]["eval"].append(time.time() - start)
 
             # record log
-            
             self.log[phase]["loss"].append(self._running_log["loss"].item())
             self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
             self.log[phase]["lang_loss"].append(self._running_log["lang_loss"].item())
@@ -424,7 +393,7 @@ class Solver():
 
         # check best
         if phase == "val":
-            cur_criterion = "lang_acc"
+            cur_criterion = "loss"
             cur_best = np.mean(self.log[phase][cur_criterion])
             if cur_best > self.best[cur_criterion]:
                 self._log("best {} achieved: {}".format(cur_criterion, cur_best))
@@ -448,7 +417,7 @@ class Solver():
                 # save model
                 self._log("saving best models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-                torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
+                #torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
 
     def _dump_log(self, phase):
         log = {
@@ -480,7 +449,7 @@ class Solver():
         # save model
         self._log("saving last models...\n")
         model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-        torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
+        #torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
 
         # export
         for phase in ["train", "val"]:
