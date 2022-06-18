@@ -24,7 +24,7 @@ from DETR.datasets import build_dataset
 
 # data setting
 DC = ScannetDatasetConfig()
-MAX_NUM_OBJ = 128
+MAX_NUM_OBJ = 64#128
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 # data path
@@ -57,8 +57,12 @@ class ScannetReferenceDataset(Dataset):
             np.zeros((1, 3), dtype=np.float32),
             np.ones((1, 3), dtype=np.float32),
         ]
-        self.dataset_config = build_dataset("scannet")
-
+        self.dataset_config = DC
+        
+        ##################
+        self.data_path = "data/scannet/scannet_data"
+        ########################
+        
         # load data
         self._load_data()
         self.multiview_data = {}
@@ -87,6 +91,21 @@ class ScannetReferenceDataset(Dataset):
         semantic_labels = self.scene_data[scene_id]["semantic_labels"]
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
 
+        # get pc like in 3DETR
+        #########################
+        '''
+        scan_name = scene_id
+        mesh_vertices = np.load(os.path.join(self.data_path, scan_name) + "_vert.npy")
+        instance_labels = np.load(
+            os.path.join(self.data_path, scan_name) + "_ins_label.npy"
+        )
+        semantic_labels = np.load(
+            os.path.join(self.data_path, scan_name) + "_sem_label.npy"
+        )
+        instance_bboxes = np.load(os.path.join(self.data_path, scan_name) + "_bbox.npy")
+        '''
+        #########################
+        
         if not self.use_color:
             point_cloud = mesh_vertices[:,0:3] # do not use color for now
             pcl_color = mesh_vertices[:,3:6]
@@ -155,7 +174,7 @@ class ScannetReferenceDataset(Dataset):
                     # Flipping along the XZ plane
                     point_cloud[:,1] = -1 * point_cloud[:,1]
                     target_bboxes[:,1] = -1 * target_bboxes[:,1]                                
-
+                
                 # Rotation along X-axis
                 rot_angle = (np.random.random()*np.pi/18) - np.pi/36 # -5 ~ +5 degree
                 rot_mat = rotx(rot_angle)
@@ -167,7 +186,7 @@ class ScannetReferenceDataset(Dataset):
                 rot_mat = roty(rot_angle)
                 point_cloud[:,0:3] = np.dot(point_cloud[:,0:3], np.transpose(rot_mat))
                 target_bboxes = rotate_aligned_boxes_along_axis(target_bboxes, rot_mat, "y")
-
+                
                 # Rotation along up-axis/Z-axis
                 rot_angle = (np.random.random()*np.pi/18) - np.pi/36 # -5 ~ +5 degree
                 rot_mat = rotz(rot_angle)
@@ -176,7 +195,7 @@ class ScannetReferenceDataset(Dataset):
 
                 # Translation
                 point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
-                
+            
             # 3DETR addition:
             raw_sizes = target_bboxes[:, 3:6]
             # dims added:
@@ -207,7 +226,8 @@ class ScannetReferenceDataset(Dataset):
                     raw_angles.astype(np.float32)[None, ...],
             )
             box_corners = box_corners.squeeze(0)
-
+            
+            
             # compute votes *AFTER* augmentation
             # generate votes
             # Note: since there's no map between bbox instance labels and
@@ -244,13 +264,28 @@ class ScannetReferenceDataset(Dataset):
             num_bbox = 1
             point_votes = np.zeros([self.num_points, 9]) # make 3 votes identical 
             point_votes_mask = np.zeros(self.num_points)
+        
+        
 
+        #box_sizes_normalized = size_residuals
+        # Get SemCls Labels like in 3DETR
+        
         target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
         try:
             target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:,-2][0:num_bbox]]
+            
         except KeyError:
             pass
-
+        '''
+        target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
+        try:
+            target_bboxes_semcls[0 : instance_bboxes.shape[0]] = [
+                self.dataset_config.nyu40id2class[int(x)]
+                for x in instance_bboxes[:, -1][0 : instance_bboxes.shape[0]] # originally not -1 but -2
+            ]
+        except KeyError:
+            pass
+        '''
         object_cat = self.raw2label[object_name] if object_name in self.raw2label else 17
 
         data_dict = {}
@@ -285,6 +320,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["unique_multiple"] = np.array(self.unique_multiple_lookup[scene_id][str(object_id)][ann_id]).astype(np.int64)
         data_dict["pcl_color"] = pcl_color
         data_dict["load_time"] = time.time() - start
+        
         # 3DETR addition:
         data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
         data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
@@ -298,7 +334,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["gt_box_sizes"] = raw_sizes.astype(np.float32)
         data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
         data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
-
+        
         return data_dict
     
     def _get_raw2label(self):

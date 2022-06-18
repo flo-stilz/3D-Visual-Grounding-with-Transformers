@@ -236,7 +236,8 @@ def write_bbox(bbox, mode, output_file):
     verts = []
     indices = []
     colors = []
-    corners = get_bbox_corners(bbox)
+    #corners = get_bbox_corners(bbox)
+    corners = bbox
 
     box_min = np.min(corners, axis=0)
     box_max = np.max(corners, axis=0)
@@ -338,6 +339,7 @@ def dump_results(args, scanrefer, data, config):
     
     # from network outputs
     # detection
+    '''
     pred_objectness = torch.argmax(data['objectness_scores'], 2).float().detach().cpu().numpy()
     pred_center = data['center'].detach().cpu().numpy() # (B,K,3)
     pred_heading_class = torch.argmax(data['heading_scores'], -1) # B,num_proposal
@@ -361,7 +363,10 @@ def dump_results(args, scanrefer, data, config):
     gt_size_residual = data['size_residual_label'].cpu().numpy() # B,K2,3
     # reference
     gt_ref_labels = data["ref_box_label"].detach().cpu().numpy()
-
+    '''
+    pred_obb_batch = data['outputs']['box_corners'][:,40]
+    #print(pred_obb_batch)
+    gt_box_corners = data["gt_box_corners"][:,0]
     for i in range(batch_size):
         # basic info
         idx = ids[i]
@@ -381,33 +386,40 @@ def dump_results(args, scanrefer, data, config):
 
             write_ply_rgb(point_clouds[i], pcl_color[i], os.path.join(scene_dump_dir, 'pc.ply'))
 
+        '''
          # filter out the valid ground truth reference box
         assert gt_ref_labels[i].shape[0] == gt_center[i].shape[0]
         gt_ref_idx = np.argmax(gt_ref_labels[i], 0)
-
+        '''
         # visualize the gt reference box
         # NOTE: for each object there should be only one gt reference box
         object_dump_dir = os.path.join(dump_dir, scene_id, "gt_{}_{}.ply".format(object_id, object_name))
+        '''
         gt_obb = config.param2obb(gt_center[i, gt_ref_idx, 0:3], gt_heading_class[i, gt_ref_idx], gt_heading_residual[i, gt_ref_idx],
                 gt_size_class[i, gt_ref_idx], gt_size_residual[i, gt_ref_idx])
         gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
-
+        '''
+        gt_obb = gt_box_corners[i].detach().cpu().numpy()
+        print(gt_obb.shape)
         if not os.path.exists(object_dump_dir):
             write_bbox(gt_obb, 0, os.path.join(scene_dump_dir, 'gt_{}_{}.ply'.format(object_id, object_name)))
-        
+        '''
         # find the valid reference prediction
         pred_masks = nms_masks[i] * pred_objectness[i] == 1
         assert pred_ref_scores[i].shape[0] == pred_center[i].shape[0]
         pred_ref_idx = np.argmax(pred_ref_scores[i] * pred_masks, 0)
         assigned_gt = torch.gather(data["ref_box_label"], 1, data["object_assignment"]).detach().cpu().numpy()
-
+        '''
         # visualize the predicted reference box
+        '''
         pred_obb = config.param2obb(pred_center[i, pred_ref_idx, 0:3], pred_heading_class[i, pred_ref_idx], pred_heading_residual[i, pred_ref_idx],
                 pred_size_class[i, pred_ref_idx], pred_size_residual[i, pred_ref_idx])
         pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
-        iou = box3d_iou(gt_bbox, pred_bbox)
-
-        write_bbox(pred_obb, 1, os.path.join(scene_dump_dir, 'pred_{}_{}_{}_{:.5f}_{:.5f}.ply'.format(object_id, object_name, ann_id, pred_ref_scores_softmax[i, pred_ref_idx], iou)))
+        '''
+        #iou = box3d_iou(gt_bbox, pred_bbox)
+        
+        print(pred_obb_batch[i].shape)
+        write_bbox(pred_obb_batch[i].detach().cpu().numpy(), 1, os.path.join(scene_dump_dir, 'pred_{}_{}_{}_{:.5f}_{:.5f}.ply'.format(object_id, object_name, ann_id, 0, 1)))#pred_ref_scores_softmax[i, pred_ref_idx], iou)))
 
 def visualize(args):
     # init training dataset

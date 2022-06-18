@@ -100,6 +100,7 @@ ITER_REPORT_TEMPLATE = """
 [info] mean_eval_time: {mean_eval_time}s
 [info] mean_iter_time: {mean_iter_time}s
 [info] ETA: {eta_h}h {eta_m}m {eta_s}s
+[info] LR: {curr_lr}
 """
 
 EPOCH_REPORT_TEMPLATE = """
@@ -212,6 +213,7 @@ class Solver():
         self._global_iter_id = 0
         self._total_iter = {}             # set in __call__
         self.eval_step = 100
+        self.test = False # for continuing training on the same task
 
         # templates
         self.__iter_report_template = ITER_REPORT_TEMPLATE
@@ -399,8 +401,7 @@ class Solver():
         self.train_iter = 0
         for data_dict in dataloader:
             # lr scheduler step:
-            max_iters = len(dataloader)*self.args.epoch # max epochs
-            curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / max_iters)
+            curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / self._total_iter["train"])
             # move to cuda
             for key in data_dict:
                 data_dict[key] = data_dict[key].cuda()
@@ -475,16 +476,17 @@ class Solver():
                 iter_time += self.log[phase]["eval"][-1]
                 self.log[phase]["iter_time"].append(iter_time)
                 if (self._global_iter_id + 1) % self.verbose == 0:
-                    self._train_report(epoch_id)
+                    self._train_report(epoch_id, curr_lr)
 
                 # evaluation
-                if self._global_iter_id % self.val_step == 0:
+                if self._global_iter_id % self.val_step == 0 or self.test:
                     print("evaluating...")
                     # val
                     self._feed(self.dataloader["val"], "val", epoch_id)
                     self._dump_log("val")
                     self._set_phase("train")
                     self._epoch_report(epoch_id)
+                    self.test = False
 
                 # dump log
                 self._dump_log("train")
@@ -563,7 +565,7 @@ class Solver():
         for phase in ["train", "val"]:
             self._log_writer[phase].export_scalars_to_json(os.path.join(CONF.PATH.OUTPUT, self.stamp, "tensorboard/{}".format(phase), "all_scalars.json"))
 
-    def _train_report(self, epoch_id):
+    def _train_report(self, epoch_id, curr_lr):
         # compute ETA
         fetch_time = self.log["train"]["fetch"]
         forward_time = self.log["train"]["forward"]
@@ -604,7 +606,8 @@ class Solver():
             mean_iter_time=round(np.mean(iter_time), 5),
             eta_h=eta["h"],
             eta_m=eta["m"],
-            eta_s=eta["s"]
+            eta_s=eta["s"],
+            curr_lr=curr_lr
         )
         self._log(iter_report)
 

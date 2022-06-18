@@ -89,7 +89,7 @@ def get_model(args):
         '''
         # 3DETR pretrained:
         #print(pretrained_model)
-        '''
+        
         for param in pretrained_model.parameters():
             for weights in param.data:
                 print(weights)
@@ -97,24 +97,25 @@ def get_model(args):
             break
         
         
+        #pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
         pre = torch.load(pretrained_path)
 
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
-        '''
+        
         for key in pre:
             sd = pretrained_model.state_dict()
             sd[key] = pre[key]
             pretrained_model.load_state_dict(sd)
         
         # mount
-        '''
+        
         for param in pretrained_model.parameters():
             for weights in param.data:
                 print(weights)
                 break
             break
-        '''
+        
         model.Object_Detection = pretrained_model
         #print(model)
         
@@ -277,8 +278,8 @@ def train(args):
     scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
     # solely for quick testing:
     #######################################
-    #scanrefer_train = scanrefer_train[:300]
-    #scanrefer_val = scanrefer_val[:100]
+    scanrefer_train = scanrefer_train[:100]
+    scanrefer_val = scanrefer_val[:30]
     #######################################
     scanrefer = {
         "train": scanrefer_train,
@@ -305,7 +306,7 @@ if __name__ == "__main__":
     parser.add_argument("--tag", type=str, help="tag for the training, e.g. cuda_wl", default="")
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
     parser.add_argument("--batch_size", type=int, help="batch size", default=7) # initially 14
-    parser.add_argument("--epoch", type=int, help="number of epochs", default=360) # initially 50
+    parser.add_argument("--epoch", type=int, help="number of epochs", default=1080) # initially 50
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10) # default 10
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=3000)
     parser.add_argument("--lr", type=float, help="learning rate", default=5e-4) # default 1e-3
