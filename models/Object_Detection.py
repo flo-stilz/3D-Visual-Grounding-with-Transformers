@@ -498,7 +498,7 @@ class Object_Detection(nn.Module):
         #box_final_features = torch.zeros(256,2,256).cuda()
         features = box_final_features.transpose(0, 1)
         #data_dict["aggregated_vote_features"] = self.feature_processor(features)
-        data_dict["aggregated_vote_features"] = features
+        data_dict["aggregated_features"] = features
         
         # look at box_predictions
         #return box_predictions

@@ -250,7 +250,6 @@ class ScannetReferenceDataset(Dataset):
             target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:,-2][0:num_bbox]]
         except KeyError:
             pass
-
         object_cat = self.raw2label[object_name] if object_name in self.raw2label else 17
 
         data_dict = {}

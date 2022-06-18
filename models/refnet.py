@@ -84,7 +84,7 @@ class RefNet(nn.Module):
 
         # --------- 3DETR ----------------
         data_dict = self.Object_Detection(data_dict)
-        data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_vote_features'])
+        data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_features'])
         '''
         # --------- HOUGH VOTING ---------
         data_dict = self.backbone_net(data_dict)

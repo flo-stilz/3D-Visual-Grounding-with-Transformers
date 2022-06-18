@@ -73,7 +73,7 @@ def get_model(args):
             no_reference=False
         )
 
-        pretrained_model = Object_Detection(input_channels)
+        #pretrained_model = Object_Detection(input_channels)
         '''
         pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
@@ -108,14 +108,14 @@ def get_model(args):
         '''
         #print(pretrained_model.state_dict()['pre_encoder.mlp_module.layer0.conv.weight'])
         #print(model.Object_Detection)
-        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
+        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model.pth")
         pre = torch.load(pretrained_path)
 
         pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
 
-        for key in pre['model']:
+        for key in pre:
             sd = pretrained_model.state_dict()
-            sd[key] = pre['model'][key]
+            sd[key[17:]] = pre[key]
             pretrained_model.load_state_dict(sd)
         
         # mount
@@ -259,8 +259,8 @@ def train(args):
     scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
     # solely for quick testing:
     #######################################
-    #scanrefer_train = scanrefer_train[:3000]
-    #scanrefer_val = scanrefer_val[:1000]
+    #scanrefer_train = scanrefer_train[:100]
+    #scanrefer_val = scanrefer_val[:30]
     #######################################
     scanrefer = {
         "train": scanrefer_train,
