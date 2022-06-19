@@ -24,7 +24,7 @@ from lib.dataset import ScannetReferenceDataset
 from lib.solver import Solver
 from lib.ap_helper import APCalculator, parse_predictions, parse_groundtruths
 from lib.loss_helper import get_loss
-from lib.eval_helper import get_eval
+from lib.eval_helper import get_eval, eval_ref_one_sample
 from lib.config import CONF
 
 # data
@@ -364,9 +364,9 @@ def dump_results(args, scanrefer, data, config):
     # reference
     gt_ref_labels = data["ref_box_label"].detach().cpu().numpy()
     '''
-    pred_obb_batch = data['outputs']['box_corners'][:,40]
+    pred_obb_batch = data['outputs']['box_corners']
     #print(pred_obb_batch)
-    gt_box_corners = data["gt_box_corners"][:,0]
+    gt_box_corners = data["gt_box_corners"]
     for i in range(batch_size):
         # basic info
         idx = ids[i]
@@ -399,10 +399,14 @@ def dump_results(args, scanrefer, data, config):
                 gt_size_class[i, gt_ref_idx], gt_size_residual[i, gt_ref_idx])
         gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
         '''
-        gt_obb = gt_box_corners[i].detach().cpu().numpy()
+        gt_obb = gt_box_corners[i]
         print(gt_obb.shape)
-        if not os.path.exists(object_dump_dir):
-            write_bbox(gt_obb, 0, os.path.join(scene_dump_dir, 'gt_{}_{}.ply'.format(object_id, object_name)))
+        count=0
+        for j in range(gt_obb.shape[0]):
+            if not os.path.exists(object_dump_dir):
+                direct = os.path.join(dump_dir, scene_id, "gt_{}.ply".format(count))
+                write_bbox(gt_obb[j].detach().cpu().numpy(), 0, direct)
+                count += 1
         '''
         # find the valid reference prediction
         pred_masks = nms_masks[i] * pred_objectness[i] == 1
@@ -418,9 +422,33 @@ def dump_results(args, scanrefer, data, config):
         '''
         #iou = box3d_iou(gt_bbox, pred_bbox)
         
-        print(pred_obb_batch[i].shape)
-        write_bbox(pred_obb_batch[i].detach().cpu().numpy(), 1, os.path.join(scene_dump_dir, 'pred_{}_{}_{}_{:.5f}_{:.5f}.ply'.format(object_id, object_name, ann_id, 0, 1)))#pred_ref_scores_softmax[i, pred_ref_idx], iou)))
-
+        print(pred_obb_batch[i].shape[0])
+        count2 = 0
+        print(gt_obb.shape[0])
+        for k in range(gt_obb.shape[0]):
+            iou_test = []
+            if k%5==0:
+                print("Iterated through "+str(k)+" gt boxes")
+            for j in range(pred_obb_batch[i].shape[0]):
+                iou = eval_ref_one_sample(pred_obb_batch[i,j].detach().cpu().numpy(), gt_obb[k].detach().cpu().numpy())
+                iou_test.append(iou)
+                #print(val)
+                #ious.append(iou_test.index(val))
+            #print(len(iou_test))
+            iou2 = max(iou_test)
+            #print(iou2)
+            val = iou_test.index(iou2)
+            #print(str(i)+' '+str(val))
+            print(iou2)
+            write_bbox(pred_obb_batch[i,val].detach().cpu().numpy(), 1, os.path.join(scene_dump_dir, 'pred_{}_{}.ply'.format(count2,round(iou2*100))))#pred_ref_scores_softmax[i, pred_ref_idx], iou)))
+            count2+=1
+        '''
+        for j in range(pred_obb_batch[i].shape[0]):
+            write_bbox(pred_obb_batch[i,j].detach().cpu().numpy(), 1, os.path.join(scene_dump_dir, 'pred_{}_{}.ply'.format(count2,iou)))#pred_ref_scores_softmax[i, pred_ref_idx], iou)))
+            count2+=1
+        '''
+        break # only show first item in batch result
+    
 def visualize(args):
     # init training dataset
     print("preparing data...")
@@ -468,7 +496,7 @@ def visualize(args):
         
         # visualize
         dump_results(args, scanrefer, data, DC)
-
+        break # only show first batch result
     print("done!")
 
 

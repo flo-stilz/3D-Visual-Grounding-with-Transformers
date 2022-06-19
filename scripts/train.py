@@ -278,8 +278,8 @@ def train(args):
     scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes)
     # solely for quick testing:
     #######################################
-    scanrefer_train = scanrefer_train[:100]
-    scanrefer_val = scanrefer_val[:30]
+    #scanrefer_train = scanrefer_train[:100]
+    #scanrefer_val = scanrefer_val[:30]
     #######################################
     scanrefer = {
         "train": scanrefer_train,

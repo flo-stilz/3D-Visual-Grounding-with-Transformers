@@ -24,7 +24,7 @@ from DETR.datasets import build_dataset
 
 # data setting
 DC = ScannetDatasetConfig()
-MAX_NUM_OBJ = 64#128
+MAX_NUM_OBJ = 64
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 
 # data path
@@ -196,11 +196,13 @@ class ScannetReferenceDataset(Dataset):
                 # Translation
                 point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
             
+            
             # 3DETR addition:
             raw_sizes = target_bboxes[:, 3:6]
             # dims added:
             point_cloud_dims_min = point_cloud.min(axis=0)[:3]
             point_cloud_dims_max = point_cloud.max(axis=0)[:3]
+            
             
             box_centers = target_bboxes.astype(np.float32)[:, 0:3]
             box_centers_normalized = shift_scale_points(
@@ -220,11 +222,22 @@ class ScannetReferenceDataset(Dataset):
             )
             box_sizes_normalized = box_sizes_normalized.squeeze(0)
 
+            
+            
             box_corners = self.dataset_config.box_parametrization_to_corners_np(
                     box_centers[None, ...],
                     raw_sizes.astype(np.float32)[None, ...],
                     raw_angles.astype(np.float32)[None, ...],
             )
+            
+            '''
+            # use normalized box_centers and sizes to create gt box corners
+            box_corners = self.dataset_config.box_parametrization_to_corners_np(
+                    box_centers_normalized[None, ...],
+                    box_sizes_normalized.astype(np.float32)[None, ...],
+                    raw_angles.astype(np.float32)[None, ...],
+            )
+            '''
             box_corners = box_corners.squeeze(0)
             
             

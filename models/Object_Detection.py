@@ -335,12 +335,19 @@ class Object_Detection(nn.Module):
                 size_normalized[l], point_cloud_dims
             )
             
+            
             box_corners = self.box_processor.box_parametrization_to_corners(
                 center_unnormalized, size_unnormalized, angle_continuous
             )
+            
             '''
             box_corners = self.box_processor.box_to_corners(center_unnormalized, size_unnormalized, angle_continuous)
             print(box_corners.shape)
+            '''
+            '''
+            # use normalized values to predict box_corners
+            box_corners = self.box_processor.box_parametrization_to_corners(
+                    center_normalized, size_normalized[l], angle_continuous)
             '''
             # below are not used in computing loss (only for matching/mAP eval)
             # we compute them with no_grad() so that distributed training does not complain about unused variables
