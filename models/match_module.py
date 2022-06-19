@@ -48,7 +48,7 @@ class MatchModule(nn.Module):
 
         if self.args.use_chunking:
             data_dict["random"] = random.random()
-            batchsize, len_nun_max = data_dict["lang_feat_list"].shape[:2]
+            batchsize, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
             # print(f'batchsize, len_nun_max: {batchsize}, {len_nun_max}')
             features = features.unsqueeze(1).repeat(1, len_nun_max, 1, 1)
             v1, v2, v3, v4 = features.shape[:4]

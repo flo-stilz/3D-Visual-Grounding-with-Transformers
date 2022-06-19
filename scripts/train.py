@@ -122,19 +122,39 @@ def get_num_params(model):
 
 def get_solver(args, dataloader):
     model = get_model(args)
+
+    # voteloss höher
+    # matching bisschen runter gehen
+
+    '''
+    from dvg
+    weight_dict = {
+        'detr': {'lr': 0.0001},
+        'lang': {'lr': 0.0005},
+        'match': {'lr': 0.0005},
+    }
+    '''
     
     # learning rate 
     if args.use_chunking:  
         param_list=[
-                {'params':model.backbone_net.parameters(), 'lr':args.lr * 10},
-                {'params':model.vgen.parameters(), 'lr':args.lr * 10},
-                {'params':model.proposal.parameters(), 'lr': args.lr * 10},
-                {'params':model.match.parameters(), 'lr': args.lr * 10},
+                {'params':model.backbone_net.parameters(), 'lr': args.lr},
+                {'params':model.vgen.parameters(), 'lr':args.lr},
+                {'params':model.proposal.parameters(), 'lr': args.lr},
+                {'params':model.match.parameters(), 'lr': args.lr / 5},
             ]
+        # language module
         if args.lang_module == 'bert':
             param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr_bert})
         else:
-            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr})
+            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr /10})
+        '''
+        # matching module
+        if args.match_module == 'bert':
+            param_list.append({'params':model.match.parameters(), 'lr': args.lr_bert})
+        else:
+            param_list.append({'params':model.match.parameters(), 'lr': args.lr})
+        '''
     else:
         param_list=[
                 {'params':model.backbone_net.parameters(), 'lr':args.lr},
@@ -394,7 +414,7 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=250)
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
-    parser.add_argument("--wd", type=float, help="weight decay", default=1e-5)
+    parser.add_argument("--wd", type=float, help="weight decay", default=1e-6)
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")
     parser.add_argument("--num_proposals", type=int, default=256, help="Proposal number [default: 256]")
     parser.add_argument("--num_scenes", type=int, default=-1, help="Number of scenes [default: -1]")
@@ -418,11 +438,20 @@ if __name__ == "__main__":
     parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
     #match module
     parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
+    parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
+    # detection module
+    parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")
+
     args = parser.parse_args()
 
+    # Cuda memory error
+    if args.lang_module == 'bert' and args.batch_size > 10:
+        args.batch_size = 10
+        
     # setting
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     # reproducibility
     torch.manual_seed(args.seed)

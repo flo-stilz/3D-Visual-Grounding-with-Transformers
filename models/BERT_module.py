@@ -10,9 +10,10 @@ from transformers import BertTokenizer, BertModel, BertConfig
 #from transformers import AutoTokenizerFast
 
 class BERTModule(nn.Module):
-    def __init__(self, num_text_classes, use_lang_classifier=True, hidden_size=256, chunking=False):
+    def __init__(self, args, num_text_classes, use_lang_classifier=True, hidden_size=256, chunking=False):
         super().__init__() 
 
+        self.args = args
         self.num_text_classes = num_text_classes
         self.use_lang_classifier = use_lang_classifier
         self.chunking = chunking
@@ -68,7 +69,7 @@ class BERTModule(nn.Module):
         encode the input descriptions
         """
 
-        if self.chunking:
+        if self.args.use_chunking:
             lang_inputs_list = data_dict["lang_inputs_list"]
             lang_mask_list = data_dict["lang_mask_list"]
 

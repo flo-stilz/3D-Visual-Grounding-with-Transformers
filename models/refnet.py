@@ -55,9 +55,9 @@ class RefNet(nn.Module):
             # (including attention and language classification)
 
             if self.args.lang_module == 'gru':
-                self.lang_encoder = LangModule(num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.chunking)
+                self.lang_encoder = LangModule(self.args, num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.args)
             elif self.args.lang_module == 'bert':
-                self.lang_encoder = BERTModule(num_class, use_lang_classifier, hidden_size, self.chunking)
+                self.lang_encoder = BERTModule(self.args, num_class, use_lang_classifier, hidden_size, self.args)
             else:
                 AssertionError
 
@@ -66,7 +66,7 @@ class RefNet(nn.Module):
             if self.args.match_module == 'scanrefer':
                 self.match = MatchModule(args=self.args, num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
             elif self.args.match_module == 'dvg':
-                self.lang_encoder = DVGMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
+                self.match = DVGMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
             else:
                 AssertionError
             # self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
