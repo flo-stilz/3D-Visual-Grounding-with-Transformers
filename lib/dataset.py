@@ -91,20 +91,6 @@ class ScannetReferenceDataset(Dataset):
         semantic_labels = self.scene_data[scene_id]["semantic_labels"]
         instance_bboxes = self.scene_data[scene_id]["instance_bboxes"]
 
-        # get pc like in 3DETR
-        #########################
-        '''
-        scan_name = scene_id
-        mesh_vertices = np.load(os.path.join(self.data_path, scan_name) + "_vert.npy")
-        instance_labels = np.load(
-            os.path.join(self.data_path, scan_name) + "_ins_label.npy"
-        )
-        semantic_labels = np.load(
-            os.path.join(self.data_path, scan_name) + "_sem_label.npy"
-        )
-        instance_bboxes = np.load(os.path.join(self.data_path, scan_name) + "_bbox.npy")
-        '''
-        #########################
         
         if not self.use_color:
             point_cloud = mesh_vertices[:,0:3] # do not use color for now
@@ -229,15 +215,6 @@ class ScannetReferenceDataset(Dataset):
                     raw_sizes.astype(np.float32)[None, ...],
                     raw_angles.astype(np.float32)[None, ...],
             )
-            
-            '''
-            # use normalized box_centers and sizes to create gt box corners
-            box_corners = self.dataset_config.box_parametrization_to_corners_np(
-                    box_centers_normalized[None, ...],
-                    box_sizes_normalized.astype(np.float32)[None, ...],
-                    raw_angles.astype(np.float32)[None, ...],
-            )
-            '''
             box_corners = box_corners.squeeze(0)
             
             
@@ -289,16 +266,6 @@ class ScannetReferenceDataset(Dataset):
             
         except KeyError:
             pass
-        '''
-        target_bboxes_semcls = np.zeros((MAX_NUM_OBJ))
-        try:
-            target_bboxes_semcls[0 : instance_bboxes.shape[0]] = [
-                self.dataset_config.nyu40id2class[int(x)]
-                for x in instance_bboxes[:, -1][0 : instance_bboxes.shape[0]] # originally not -1 but -2
-            ]
-        except KeyError:
-            pass
-        '''
         object_cat = self.raw2label[object_name] if object_name in self.raw2label else 17
 
         data_dict = {}
