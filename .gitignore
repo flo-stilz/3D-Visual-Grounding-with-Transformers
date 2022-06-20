@@ -12,6 +12,7 @@ data/scannet/tasks
 data/scannet/__pycache__
 lib/__pycache__
 lib/pointnet2/__pycache__
+lib/config.py
 models/__pycache__
 utils/__pycache__
 .DS_Store

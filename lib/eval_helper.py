@@ -43,7 +43,7 @@ def construct_bbox_corners(center, box_size):
 
     return corners_3d
 
-def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle=False, use_cat_rand=False, use_best=False, post_processing=None):
+def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_oracle=False, use_cat_rand=False, use_best=False, post_processing=None):
     """ Loss functions
 
     Args:
@@ -56,172 +56,272 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         data_dict: dict
     """
 
-    batch_size, num_words, _ = data_dict["lang_feat"].shape
+    #batch_size, num_words, _ = data_dict["lang_feat"].shape
     #batch_size, num_words = data_dict["lang_inputs"].shape
-
-    '''
-    objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
-    objectness_labels_batch = data_dict['objectness_label'].long()
-
-    if post_processing:
-        _ = parse_predictions(data_dict, post_processing)
-        nms_masks = torch.LongTensor(data_dict['pred_mask']).cuda()
-
-        # construct valid mask
-        pred_masks = (nms_masks * objectness_preds_batch == 1).float()
-        label_masks = (objectness_labels_batch == 1).float()
+    # chunking
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
+    # no chunking
     else:
-        # construct valid mask
-        pred_masks = (objectness_preds_batch == 1).float()
-        label_masks = (objectness_labels_batch == 1).float()
+        # Bert or GRU
+        if "lang_inputs" in data_dict:
+            batch_size, num_words = data_dict["lang_inputs"].shape
+        else:
+            batch_size, num_words, _ = data_dict["lang_feat"].shape
+            
+    if args.detection_module == "votenet":
+        objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
+        objectness_labels_batch = data_dict['objectness_label'].long()
     
-    cluster_preds = torch.argmax(data_dict["cluster_ref"] * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
-    preds = torch.zeros(pred_masks.shape).cuda()
-    preds = preds.scatter_(1, cluster_preds, 1)
-    cluster_preds = preds
-    cluster_labels = data_dict["cluster_labels"].float()
-    cluster_labels *= label_masks
+        if post_processing:
+            _ = parse_predictions(data_dict, post_processing)
+            nms_masks = torch.LongTensor(data_dict['pred_mask']).cuda()
+    
+            # construct valid mask
+            pred_masks = (nms_masks * objectness_preds_batch == 1).float()
+            label_masks = (objectness_labels_batch == 1).float()
+        else:
+            # construct valid mask
+            pred_masks = (objectness_preds_batch == 1).float()
+            label_masks = (objectness_labels_batch == 1).float()
+
+        # this might be wrong: 
+        # chunking
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1,pred_masks.shape[1])
+            preds = torch.zeros(data_dict["cluster_ref"].shape).cuda()
+        else:
+            cluster_preds = torch.argmax(data_dict["cluster_ref"] * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
+            preds = torch.zeros(pred_masks.shape).cuda()
+    
+        preds = preds.scatter_(1, cluster_preds, 1)
+        cluster_preds = preds
+    
+        # chunking
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            cluster_labels = data_dict["cluster_labels"].reshape(batch_size*len_nun_max, -1).float()
+            # cluster_labels *= label_masks
+        else:
+            cluster_labels = data_dict["cluster_labels"].float()
+            cluster_labels *= label_masks
+
     
     
-    # compute classification scores
-    corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
-    labels = torch.ones(corrects.shape[0]).cuda()
-    ref_acc = corrects / (labels + 1e-8)
-    
-    # store
-    data_dict["ref_acc"] = ref_acc.cpu().numpy().tolist()
-    
-    # compute localization metrics
-    if use_best:
-        pred_ref = torch.argmax(data_dict["cluster_labels"], 1) # (B,)
-        # store the calibrated predictions and masks
-        data_dict['cluster_ref'] = data_dict["cluster_labels"]
-    if use_cat_rand:
-        cluster_preds = torch.zeros(cluster_labels.shape).cuda()
-        for i in range(cluster_preds.shape[0]):
-            num_bbox = data_dict["num_bbox"][i]
-            sem_cls_label = data_dict["sem_cls_label"][i]
-            # sem_cls_label = torch.argmax(end_points["sem_cls_scores"], 2)[i]
-            sem_cls_label[num_bbox:] -= 1
-            candidate_masks = torch.gather(sem_cls_label == data_dict["object_cat"][i], 0, data_dict["object_assignment"][i])
-            candidates = torch.arange(cluster_labels.shape[1])[candidate_masks]
-            try:
-                chosen_idx = torch.randperm(candidates.shape[0])[0]
-                chosen_candidate = candidates[chosen_idx]
-                cluster_preds[i, chosen_candidate] = 1
-            except IndexError:
-                cluster_preds[i, candidates] = 1
+        # compute classification scores
+        corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
+        labels = torch.ones(corrects.shape[0]).cuda()
+        ref_acc = corrects / (labels + 1e-8)
         
-        pred_ref = torch.argmax(cluster_preds, 1) # (B,)
-        # store the calibrated predictions and masks
-        data_dict['cluster_ref'] = cluster_preds
-    else:
-        pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
-        # store the calibrated predictions and masks
-        data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
+        # store
+        data_dict["ref_acc"] = ref_acc.cpu().numpy().tolist()
+        
+        # compute localization metrics
+        if use_best:
+            pred_ref = torch.argmax(data_dict["cluster_labels"], 1)  # (B,)
+            # store the calibrated predictions and masks
+            data_dict['cluster_ref'] = data_dict["cluster_labels"]
+        if use_cat_rand:
+            cluster_preds = torch.zeros(cluster_labels.shape).cuda()
+            for i in range(cluster_preds.shape[0]):
+                num_bbox = data_dict["num_bbox"][i]
+                sem_cls_label = data_dict["sem_cls_label"][i]
+                # sem_cls_label = torch.argmax(end_points["sem_cls_scores"], 2)[i]
+                sem_cls_label[num_bbox:] -= 1
+                candidate_masks = torch.gather(sem_cls_label == data_dict["object_cat"][i], 0, 
+                                                data_dict["object_assignment"][i])
+                candidates = torch.arange(cluster_labels.shape[1])[candidate_masks]
+                try:
+                    chosen_idx = torch.randperm(candidates.shape[0])[0]
+                    chosen_candidate = candidates[chosen_idx]
+                    cluster_preds[i, chosen_candidate] = 1
+                except IndexError:
+                    cluster_preds[i, candidates] = 1
+            
+            if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+                pred_ref = torch.argmax(cluster_preds, -1)  # (B,)
+            else:
+                pred_ref = torch.argmax(cluster_preds, 1) # (B,)
+            # store the calibrated predictions and masks
+            data_dict['cluster_ref'] = cluster_preds
+        else:
+            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
+            # store the calibrated predictions and masks
+            data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
     
-    if use_oracle:
-        pred_center = data_dict['center_label'] # (B,MAX_NUM_OBJ,3)
-        pred_heading_class = data_dict['heading_class_label'] # B,K2
-        pred_heading_residual = data_dict['heading_residual_label'] # B,K2
-        pred_size_class = data_dict['size_class_label'] # B,K2
-        pred_size_residual = data_dict['size_residual_label'] # B,K2,3
+        # chunking
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            pred_mask1 = pred_masks[0].repeat(len_nun_max, 1)
+            for i in range(batch_size):
+                if i != 0:
+                    pred_mask = pred_masks[i].repeat(len_nun_max, 1)
+                    pred_mask1 = torch.cat([pred_mask1, pred_mask], dim=0)
+            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_mask1, 1)  # (B,)
+        else:
+            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
+            # store the calibrated predictions and masks
+            data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
 
-        # assign
-        pred_center = torch.gather(pred_center, 1, data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
-        pred_heading_class = torch.gather(pred_heading_class, 1, data_dict["object_assignment"])
-        pred_heading_residual = torch.gather(pred_heading_residual, 1, data_dict["object_assignment"]).unsqueeze(-1)
-        pred_size_class = torch.gather(pred_size_class, 1, data_dict["object_assignment"])
-        pred_size_residual = torch.gather(pred_size_residual, 1, data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
-    else:
-        pred_center = data_dict['center'] # (B,K,3)
-        pred_heading_class = torch.argmax(data_dict['heading_scores'], -1) # B,num_proposal
-        pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
-        pred_heading_class = pred_heading_class # B,num_proposal
-        pred_heading_residual = pred_heading_residual.squeeze(2) # B,num_proposal
-        pred_size_class = torch.argmax(data_dict['size_scores'], -1) # B,num_proposal
-        pred_size_residual = torch.gather(data_dict['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
-        pred_size_class = pred_size_class
-        pred_size_residual = pred_size_residual.squeeze(2) # B,num_proposal,3
-
-    # store
-    data_dict["pred_mask"] = pred_masks
-    data_dict["label_mask"] = label_masks
-    data_dict['pred_center'] = pred_center
-    data_dict['pred_heading_class'] = pred_heading_class
-    data_dict['pred_heading_residual'] = pred_heading_residual
-    data_dict['pred_size_class'] = pred_size_class
-    data_dict['pred_size_residual'] = pred_size_residual
+        if use_oracle:
+            pred_center = data_dict['center_label']  # (B,MAX_NUM_OBJ,3)
+            pred_heading_class = data_dict['heading_class_label']  # B,K2
+            pred_heading_residual = data_dict['heading_residual_label']  # B,K2
+            pred_size_class = data_dict['size_class_label']  # B,K2
+            pred_size_residual = data_dict['size_residual_label']  # B,K2,3
     
-    gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
+            # assign
+            pred_center = torch.gather(pred_center, 1, data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
+            pred_heading_class = torch.gather(pred_heading_class, 1, data_dict["object_assignment"])
+            pred_heading_residual = torch.gather(pred_heading_residual, 1, data_dict["object_assignment"]).unsqueeze(-1)
+            pred_size_class = torch.gather(pred_size_class, 1, data_dict["object_assignment"])
+            pred_size_residual = torch.gather(pred_size_residual, 1, 
+                                            data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
+        else:
+            pred_center = data_dict['center']  # (B,K,3)
+            pred_heading_class = torch.argmax(data_dict['heading_scores'], -1)  # B,num_proposal
+            pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
+            pred_heading_class = pred_heading_class # B,num_proposal
+            pred_heading_residual = pred_heading_residual.squeeze(2) # B,num_proposal
+            pred_size_class = torch.argmax(data_dict['size_scores'], -1) # B,num_proposal
+            pred_size_residual = torch.gather(data_dict['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
+            pred_size_class = pred_size_class
+            pred_size_residual = pred_size_residual.squeeze(2)  # B,num_proposal,3
+
+        # store
+        data_dict["pred_mask"] = pred_masks
+        data_dict["label_mask"] = label_masks
+        data_dict['pred_center'] = pred_center
+        data_dict['pred_heading_class'] = pred_heading_class
+        data_dict['pred_heading_residual'] = pred_heading_residual
+        data_dict['pred_size_class'] = pred_size_class
+        data_dict['pred_size_residual'] = pred_size_residual
+
+    # chunking used
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        gt_ref = torch.argmax(data_dict["ref_box_label_list"], -1)
+    else:
+        gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
+
     gt_center = data_dict['center_label'] # (B,MAX_NUM_OBJ,3)
     gt_heading_class = data_dict['heading_class_label'] # B,K2
     gt_heading_residual = data_dict['heading_residual_label'] # B,K2
     gt_size_class = data_dict['size_class_label'] # B,K2
     gt_size_residual = data_dict['size_residual_label'] # B,K2,3
-    '''
+    
     ious = []
     multiple = []
     others = []
     pred_bboxes = []
     gt_bboxes = []
-    for i in range(batch_size):
-        # compute the iou
-        '''
-        pred_ref_idx, gt_ref_idx = pred_ref[i], gt_ref[i]
-        pred_obb = config.param2obb(
-            pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(), 
-            pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(), 
-            pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
-            pred_size_class[i, pred_ref_idx].detach().cpu().numpy(), 
-            pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
-        )
-        
-        gt_ref_idx = gt_ref[i]
-        gt_obb = config.param2obb(
-            gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(), 
-            gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(), 
-            gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
-            gt_size_class[i, gt_ref_idx].detach().cpu().numpy(), 
-            gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
-        )
-        '''
-        #pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
-        cluster_ref = data_dict['cluster_ref']
-        pred_bbox = data_dict['outputs']['box_corners'][i][torch.argmax(cluster_ref[i],0)]
-        pred_bbox = pred_bbox.detach().cpu().numpy()
-        '''
-        pred_center = data_dict['outputs']['center_unnormalized'][i][torch.argmax(cluster_ref[i],0)].detach().cpu().numpy()
-        pred_size = data_dict['outputs']['size_unnormalized'][i][torch.argmax(cluster_ref[i],0)].detach().cpu().numpy()
-        pred_angle = data_dict['outputs']['angle_continuous'][i][torch.argmax(cluster_ref[i],0)].detach().cpu().numpy()
-        pred_bbox = get_3d_box(pred_size, pred_angle, pred_center)
-        
-        gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
-        '''
-        gt_bbox = data_dict['final_gt_box_corner'][i].detach().cpu().numpy()
-        iou = eval_ref_one_sample(pred_bbox, gt_bbox)
-        ious.append(iou)
+    # chunking used
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        lang_num = data_dict["lang_num"]
+        pred_ref = pred_ref.reshape(batch_size, len_nun_max)
+        for i in range(batch_size):
+            # compute the iou
+            for j in range(len_nun_max):
+                if j < lang_num[i]:
+                    gt_ref_idx = gt_ref[i][j]
+                    if args.detection_module == "votenet":
+                        pred_ref_idx = pred_ref[i][j]
+                        pred_obb = config.param2obb(
+                            pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(),
+                            pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(),
+                            pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
+                            pred_size_class[i, pred_ref_idx].detach().cpu().numpy(),
+                            pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
+                        )
+                        gt_obb = config.param2obb(
+                            gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(),
+                            gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(),
+                            gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
+                            gt_size_class[i, gt_ref_idx].detach().cpu().numpy(),
+                            gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
+                        )
+                        pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+                        gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+                    elif args.detection_module == "3detr":
+                        # add objectness masks
+                        cluster_ref = data_dict['cluster_ref']
+                        pred_ref_idx = torch.argmax(cluster_ref[i],0)
+                        pred_bbox = data_dict['outputs']['box_corners'][i][pred_ref_idx]
+                        pred_bbox = pred_bbox.detach().cpu().numpy()
+                        gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
+                        gt_bbox = gt_bbox.detach().cpu().numpy()
+                        #gt_bbox = data_dict['final_gt_box_corner'][i].detach().cpu().numpy()
+                    iou = eval_ref_one_sample(pred_bbox, gt_bbox)
+                    ious.append(iou)
 
-        # NOTE: get_3d_box() will return problematic bboxes
-        #pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
-        '''
-        pred_bbox = construct_bbox_corners(pred_center, pred_size)
-        gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
-        '''
-        pred_bboxes.append(pred_bbox)
-        gt_bboxes.append(gt_bbox)
-        
+                    # NOTE: get_3d_box() will return problematic bboxes
+                    if args.detection_module == "votenet":
+                        pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
+                        gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
+                    pred_bboxes.append(pred_bbox)
+                    gt_bboxes.append(gt_bbox)
 
-        # construct the multiple mask
-        multiple.append(data_dict["unique_multiple"][i].item())
+                    # construct the multiple mask
+                    multiple.append(data_dict["unique_multiple_list"][i][j].item())
 
-        # construct the others mask
-        flag = 1 if data_dict["object_cat"][i] == 17 else 0
-        others.append(flag)
+                    # construct the others mask
+                    flag = 1 if data_dict["object_cat_list"][i][j] == 17 else 0
+                    others.append(flag)
+    else:
+        gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
+
+        for i in range(batch_size):
+            # compute the iou
+            gt_ref_idx = gt_ref[i]
+            if args.detection_module == "votenet":
+                pred_ref_idx = pred_ref[i]
+                pred_obb = config.param2obb(
+                    pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(), 
+                    pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(), 
+                    pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
+                    pred_size_class[i, pred_ref_idx].detach().cpu().numpy(), 
+                    pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
+                )
+                gt_obb = config.param2obb(
+                    gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(), 
+                    gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(), 
+                    gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
+                    gt_size_class[i, gt_ref_idx].detach().cpu().numpy(), 
+                    gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
+                )
+                pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+                gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+            elif args.detection_module == "3detr":
+                # add objectness masks
+                cluster_ref = data_dict['cluster_ref']
+                pred_ref_idx = torch.argmax(cluster_ref[i],0)
+                pred_bbox = data_dict['outputs']['box_corners'][i][pred_ref_idx]
+                pred_bbox = pred_bbox.detach().cpu().numpy()
+                gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
+                gt_bbox = gt_bbox.detach().cpu().numpy()
+                
+            iou = eval_ref_one_sample(pred_bbox, gt_bbox)
+            ious.append(iou)
+
+            # NOTE: get_3d_box() will return problematic bboxes
+            if args.detection_module == "votenet":
+                pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
+                gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
+            pred_bboxes.append(pred_bbox)
+            gt_bboxes.append(gt_bbox)
+
+            # construct the multiple mask
+            multiple.append(data_dict["unique_multiple"][i].item())
+
+            # construct the others mask
+            flag = 1 if data_dict["object_cat"][i] == 17 else 0
+            others.append(flag)
     
     # lang
     if reference and use_lang_classifier:
-        data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == data_dict["object_cat"]).float().mean()
+        # chunking used
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            object_cat = data_dict["object_cat_list"].reshape(batch_size*len_nun_max)
+            data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == object_cat).float().mean()
+        else:
+            data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == data_dict["object_cat"]).float().mean()
     else:
         data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
     
@@ -236,14 +336,15 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
 
     # --------------------------------------------
     # Some other statistics
-    '''
-    obj_pred_val = torch.argmax(data_dict['objectness_scores'], 2) # B,K
-    obj_acc = torch.sum((obj_pred_val==data_dict['objectness_label'].long()).float()*data_dict['objectness_mask'])/(torch.sum(data_dict['objectness_mask'])+1e-6)
-    data_dict['obj_acc'] = obj_acc
-    # detection semantic classification
-    sem_cls_label = torch.gather(data_dict['sem_cls_label'], 1, data_dict['object_assignment']) # select (B,K) from (B,K2)
-    sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1) # (B,K)
-    sem_match = (sem_cls_label == sem_cls_pred).float()
-    data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
-    '''
+    if args.detection_module == "votenet":
+        obj_pred_val = torch.argmax(data_dict['objectness_scores'], 2) # B,K
+        obj_acc = torch.sum((obj_pred_val==data_dict['objectness_label'].long()).float()*data_dict['objectness_mask'])/(torch.sum(data_dict['objectness_mask'])+1e-6)
+        data_dict['obj_acc'] = obj_acc
+        # detection semantic classification
+        sem_cls_label = torch.gather(data_dict['sem_cls_label'], 1, data_dict['object_assignment']) # select (B,K) from (B,K2)
+        sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1) # (B,K)
+        sem_match = (sem_cls_label == sem_cls_pred).float()
+        data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
+
     return data_dict
+
