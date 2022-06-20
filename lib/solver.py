@@ -393,7 +393,7 @@ class Solver():
 
         # check best
         if phase == "val":
-            cur_criterion = "loss"
+            cur_criterion = "iou_rate_0.5"
             cur_best = np.mean(self.log[phase][cur_criterion])
             if cur_best > self.best[cur_criterion]:
                 self._log("best {} achieved: {}".format(cur_criterion, cur_best))

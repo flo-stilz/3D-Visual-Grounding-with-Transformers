@@ -21,6 +21,9 @@ from lib.solver import Solver
 from lib.config import CONF
 from models.refnet import RefNet
 
+from scripts.utils.AdamW import AdamW
+from scripts.utils.script_utils import set_params_lr_dict
+
 SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
 SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))
 
@@ -123,19 +126,38 @@ def get_num_params(model):
 def get_solver(args, dataloader):
     model = get_model(args)
 
-    # voteloss höher
-    # matching bisschen runter gehen
+    # learning rate
 
     '''
-    from dvg
     weight_dict = {
-        'detr': {'lr': 0.0001},
-        'lang': {'lr': 0.0005},
+        # backbone + detection
+        'backbone_net': {'lr': 0.001},
+        'vgen': {'lr': 0.0005},
+        # proposal
+        'proposal': {'lr': 0.0005},
+        # language
+        #'lang_encoder': {'lr': 0.0001},
+        # matching
         'match': {'lr': 0.0005},
+
+        # from 3dvg
+        #'detr': {'lr': 0.0001},
+        #'lang': {'lr': 0.0005},
+        #'match': {'lr': 0.0005},
     }
-    '''
+
+    if args.lang_module == 'bert':
+        weight_dict['lang_encoder'] = {'lr': 0.0005}
+    else:
+        weight_dict['lang_encoder'] = {'lr': 0.001}
+        
     
-    # learning rate 
+    params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
+    # params = model.parameters()
+    #optimizer = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
+    
+    
+    
     if args.use_chunking:  
         param_list=[
                 {'params':model.backbone_net.parameters(), 'lr': args.lr},
@@ -148,13 +170,13 @@ def get_solver(args, dataloader):
             param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr_bert})
         else:
             param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr /10})
-        '''
+        
         # matching module
         if args.match_module == 'bert':
             param_list.append({'params':model.match.parameters(), 'lr': args.lr_bert})
         else:
             param_list.append({'params':model.match.parameters(), 'lr': args.lr})
-        '''
+        
     else:
         param_list=[
                 {'params':model.backbone_net.parameters(), 'lr':args.lr},
@@ -172,11 +194,13 @@ def get_solver(args, dataloader):
     #if args.lang_module == 'bert':
     #    param_list.append( {'params':model.lang_module.parameters(),'lr':args.lr_bert})
 
-    optimizer = optim.Adam(param_list,lr=args.lr, weight_decay=args.wd)
+    optimizer = optim.Adam(params,lr=args.lr, weight_decay=args.wd)
+    '''
+    weight_dict = ''
     
     # print(f'params pointnet: {model.backbone_net.parameters()}')
 
-    #optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -214,9 +238,9 @@ def get_solver(args, dataloader):
     )
     num_params = get_num_params(model)
 
-    return solver, num_params, root, param_list
+    return solver, num_params, root, weight_dict
 
-def save_info(args, root, num_params, train_dataset, val_dataset, param_list):
+def save_info(args, root, num_params, train_dataset, val_dataset, weight_dict):
     info = {}
     for key, value in vars(args).items():
         info[key] = value
@@ -231,7 +255,7 @@ def save_info(args, root, num_params, train_dataset, val_dataset, param_list):
         json.dump(info, f, indent=4)
     
     writer1 = tf.summary.create_file_writer(root + '/config')
-    write_string_summary_v2(writer1, get_summary_str(args, param_list))
+    write_string_summary_v2(writer1, get_summary_str(args, weight_dict))
     '''
     file_writer = tf.summary.create_file_writer(logdir)
 
@@ -347,14 +371,15 @@ def write_string_summary_v2(writer, s):
         tf.summary.text('Model configuration', s, step=0)
 
 # Get model summary as a string
-def get_summary_str(args, param_list):
+def get_summary_str(args, weight_dict):
     lines = []
     string = ''
     for key, value in vars(args).items():
         string += f'{key}: {value} |'
     lines.append(string)
     # geht so nicht auf jeden fall
-    # lines.append(str(param_list))
+    lines.append('\n')
+    lines.append(str(weight_dict))
     # Add initial spaces to avoid markdown formatting in TensorBoard
     return '    ' + '\n    '.join(lines)
 
@@ -432,7 +457,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_checkpoint", type=str, help="Specify the checkpoint root", default="")
     #chunking
     parser.add_argument("--use_chunking", action="store_true", help="Chunking")
-    parser.add_argument("--lang_num_max", type=int, help="lang num max", default=32)
+    parser.add_argument("--lang_num_max", type=int, help="lang num max", default=8)
     #language module
     parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
     parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
@@ -444,9 +469,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Cuda memory error
-    if args.lang_module == 'bert' and args.batch_size > 10:
-        args.batch_size = 10
         
     # setting
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu

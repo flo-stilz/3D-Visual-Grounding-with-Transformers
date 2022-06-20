@@ -46,12 +46,19 @@ class BERTModule(nn.Module):
         
         self.MLP = nn.Linear(768,hidden_size)
         '''
-
+        if self.args.match_module == 'scanrefer':
+            pass
+        elif self.args.match_module == 'dvg':
+            hidden_size = 128
+        else:
+            AssertionError
+        
         self.MLP = nn.Sequential(
             nn.Linear(768,512),
             nn.ReLU(), nn.Dropout(0.1),
             nn.Linear(512, hidden_size)
         )
+        
 
         #lang_size = hidden_size * 2 if self.use_bidir else hidden_size
         lang_size = hidden_size
@@ -75,10 +82,9 @@ class BERTModule(nn.Module):
 
             batch_size, len_nun_max, max_des_len = lang_inputs_list.shape[:3]
 
-            lang_inputs_list = lang_inputs_list.reshape(batch_size * len_nun_max, max_des_len)
-            lang_mask_list = lang_mask_list.reshape(batch_size * len_nun_max, max_des_len)
+            lang_inputs_list = lang_inputs_list.reshape(batch_size * len_nun_max, max_des_len) # word_embs in lang_module
+            lang_mask_list = lang_mask_list.reshape(batch_size * len_nun_max, max_des_len) # lang_len in lang_module
 
-            # pooled_output = self.bert(input_ids=lang_inputs_list, attention_mask=lang_mask_list,return_dict=False)
             pooled_output = self.bert(input_ids=lang_inputs_list, attention_mask=lang_mask_list,return_dict=False)
             lang_last = pooled_output[0]
             # output of CLS Token
@@ -86,7 +92,14 @@ class BERTModule(nn.Module):
             lang_last = self.MLP(lang_last)
 
             # store the encoded language features
-            data_dict["lang_emb"] = lang_last # B, hidden_size
+            data_dict["lang_emb"] = lang_last # batchsize * len_nun_max, hidden_size
+
+
+            # --------- DVG fusion module ---------
+            if self.args.match_module == 'dvg':
+                data_dict["attention_mask"] = lang_mask_list
+            # --------- End ---------
+
 
             # classify
             if self.use_lang_classifier:

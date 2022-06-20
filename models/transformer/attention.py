@@ -47,10 +47,15 @@ class ScaledDotProductAttention(nn.Module):
         :param attention_weights: Multiplicative weights for attention values (b_s, h, nq, nk).
         :return:
         '''
+
+        # nk number of key nq number queries
+
         b_s, nq = queries.shape[:2]
         nk = keys.shape[1]
+        print(f'queries: {queries.shape}, keys: {keys.shape}, values: {values.shape}')
         #print(queries.shape, keys.shape, values.shape)
         q = self.fc_q(queries)
+        print(f'q: {q.shape}, b_s: {b_s}, nq: {nq}, self.h: {self.h}, self.d_k: {self.d_k}')
         #print(q.shape, b_s, nq, self.h, self.d_k)
         q = q.view(b_s, nq, self.h, self.d_k).permute(0, 2, 1, 3)  # (b_s, h, nq, d_k)
         k = self.fc_k(keys).view(b_s, nk, self.h, self.d_k).permute(0, 2, 3, 1)  # (b_s, h, d_k, nk)

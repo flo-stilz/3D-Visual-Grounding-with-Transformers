@@ -36,6 +36,7 @@ class DVGMatchModule(nn.Module):
             MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))
         self.cross_attn = nn.ModuleList(
             MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))  # k, q, v
+        # d_model = 128, d_k = 32, d_v = 32, h = 4
 
         self.bbox_embedding = nn.Linear(12, 128)
 
@@ -47,6 +48,7 @@ class DVGMatchModule(nn.Module):
         Returns:
             scores: (B,num_proposal,2+3+NH*2+NS*4) 
         """
+        # --------- 3DVG + part ------------
         if self.use_dist_weight_matrix:
             # Attention Weight
             objects_center = data_dict['center']
@@ -67,8 +69,9 @@ class DVGMatchModule(nn.Module):
         else:
             dist_weights = None
             attention_matrix_way = 'mul'
+        # --------- End ------------
 
-        objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
+        # select detection module
         if self.args.detection_module == 'detr':
             features = data_dict['detr_features']
             features = features.permute(0, 2, 1)
@@ -79,41 +82,22 @@ class DVGMatchModule(nn.Module):
             #features = self.features_concat(features).permute(0, 2, 1)
         else:
             AssertionError
-
-        #lang_feat = data_dict["lang_emb"]
-        # features = data_dict['detr_features']
-        # features = features.permute(0, 2, 1)
-        # features = self.features_concat(features).permute(0, 2, 1)
-
+        # end
+        
         batch_size, num_proposal = features.shape[:2]
-
         objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
+        data_dict["random"] = random.random()
 
+        # self attention part on the feature level
         #features = self.mhatt(features, features, features, proposal_masks)
         features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
 
-        data_dict["random"] = random.random()
+        
         #len_nun_max = data_dict["lang_feat_list"].shape[1]
         if self.args.use_chunking:
-            batchsize, len_nun_max = data_dict["lang_feat_list"].shape[:2]
-            # print(f'batchsize, len_nun_max: {batchsize}, {len_nun_max}')
-            #features = features.unsqueeze(1).repeat(1, len_nun_max, 1, 1)
-            #v1, v2, v3, v4 = features.shape[:4]
-            #print(f'v1: {v1}, v2: {v2}, v3: {v3}, v4: {v4}') # batchsize, len_nun
-            #features = features.reshape(batchsize * len_nun_max, v3, v4)
-            #print(f'feature shape after unsquezze: {features.shape}')
-            #print(f'objectness_masks shape before unsquezze: {objectness_masks.shape}')
-            #objectness_masks = objectness_masks.unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
-            #print(f'objectness_masks shape after unsquezze: {objectness_masks.shape}')
-        else:
-            pass
+            batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
 
-        #print(f'lang_feat shape: {lang_feat.shape}')
-        #lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size, num_proposals, lang_size
-
-        #objectness_masks = objectness_masks.permute(0, 2, 1).contiguous()  # batch_size, 1, num_proposals
-
-        # copy paste
+        # copy paste part
         #feature0 = features.clone()
         ''' This is some random application of objectness mask
         if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
@@ -139,14 +123,18 @@ class DVGMatchModule(nn.Module):
                 else:
                     feature0[i, obj_mask[:total_len - obj_lens[i]], :] = obj_features[j:j + total_len - obj_lens[i], :]
         '''
-        lang_fea = data_dict["lang_fea"]
+        if self.args.lang_module == 'gru':
+            lang_fea = data_dict["lang_fea"]
+        elif self.args.lang_module == 'bert':
+            lang_fea = data_dict["lang_emb"]
 
         feature1 = features[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
         if dist_weights is not None:
             dist_weights = dist_weights[:, None, :, :, :].repeat(1, len_nun_max, 1, 1, 1).reshape(batch_size*len_nun_max, dist_weights.shape[1], num_proposal, num_proposal)
 
 
-        #print("features/ lang:", feature1.shape, lang_fea.shape) # [224, 256, 128], [224, 60, 128] wobei die 60 verschieden sein kann
+        print("features/ lang:", feature1.shape, lang_fea.shape) 
+        # [224, 256, 128], [224, 60, 128] wobei die 60 verschieden sein kann
 
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"]) # query, key, value, 
 

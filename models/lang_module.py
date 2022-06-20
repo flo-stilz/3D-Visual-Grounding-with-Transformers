@@ -59,7 +59,9 @@ class LangModule(nn.Module):
 
             lang_feat = pack_padded_sequence(word_embs, lang_len.cpu(), batch_first=True, enforce_sorted=False)
 
-            out, lang_last = self.language_encoder(lang_feat)
+            out, lang_last = self.language_encoder(lang_feat) 
+            # out = [batchsize, sequence_length, hidden_size], [num_layers, batchsize, hiddensize]  
+            
 
             # --------- DVG fusion module ---------
             if self.args.match_module == 'dvg':
