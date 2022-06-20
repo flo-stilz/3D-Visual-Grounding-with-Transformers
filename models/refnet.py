@@ -35,7 +35,7 @@ class RefNet(nn.Module):
 
         # --------- Object Detection ------------
         self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
-        self.Object_Feature_MLP = nn.Linear(256, 128)
+        self.Object_Feature_MLP = nn.Linear(256, 128) # convert box_features to transfer it to match module # maybe change design
         # --------- PROPOSAL GENERATION ---------
         # Backbone point feature learning
         '''
