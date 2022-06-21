@@ -255,7 +255,6 @@ def compute_reference_loss(data_dict, config, args, reference=True):
         criterion = SoftmaxRankingLoss()
         loss = 0.
         gt_labels = np.zeros((batch_size, len_nun_max, num_proposals))
-        start = time.time()
         for i in range(batch_size):
             gt_obb_batch = config.param2obb_batch(gt_center_list[i][:, 0:3], gt_heading_class_list[i],
                                                 gt_heading_residual_list[i],
@@ -267,6 +266,8 @@ def compute_reference_loss(data_dict, config, args, reference=True):
             elif args.detection_module == "3detr":
                 gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
                 gt_bbox_batch.detach().cpu().numpy()
+                #gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
+                
             
             labels = np.zeros((len_nun_max, num_proposals))
             for j in range(len_nun_max):
@@ -280,10 +281,11 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                     elif args.detection_module == "3detr":
                         pred_bbox_batch = data_dict['outputs']['box_corners'][i]
                         pred_bbox_batch = pred_bbox_batch.detach().cpu().numpy()
+                        #pred_bbox_batch = get_3d_box_batch(data_dict['outputs']['size_unnormalized'][i].detach().cpu().numpy(), data_dict['outputs']['angle_continuous'][i].detach().cpu().numpy(), data_dict['outputs']['center_unnormalized'][i].detach().cpu().numpy())
                     if args.detection_module == "votenet":
                         ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
                     elif args.detection_module == "3detr":
-                        ious = box3d_iou_batch_detr(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
+                        ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
 
                     # increases training difficulty. Could be used
                     #if data_dict["istrain"][0] == 1 and reference and data_dict["random"] < 0.5:
@@ -303,7 +305,7 @@ def compute_reference_loss(data_dict, config, args, reference=True):
             gt_labels[i] = labels
             # reference loss
             loss += criterion(cluster_preds[i, :lang_num[i]], cluster_labels[:lang_num[i]].float().clone())
-        print(time.time()-start)
+
         data_dict['max_iou_rate_0.25'] = max_iou_rate_25 / sum(lang_num.cpu().numpy())
         data_dict['max_iou_rate_0.5'] = max_iou_rate_5 / sum(lang_num.cpu().numpy())
 

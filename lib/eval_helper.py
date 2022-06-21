@@ -30,6 +30,7 @@ def eval_ref_one_sample(pred_bbox, gt_bbox, detection_module):
         iou = box3d_iou(pred_bbox, gt_bbox)
     elif detection_module == "3detr":
         iou, _ = box3d_iou_detr(pred_bbox, gt_bbox)
+        #iou = box3d_iou(pred_bbox, gt_bbox)
     
 
     return iou
@@ -253,6 +254,9 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                         pred_bbox = pred_bbox.detach().cpu().numpy()
                         gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
                         gt_bbox = gt_bbox.detach().cpu().numpy()
+                        #gt_bbox = get_3d_box(data_dict['gt_box_sizes'][i][gt_ref_idx].detach().cpu().numpy(), data_dict['gt_box_angles'][i][gt_ref_idx].detach().cpu().numpy(), data_dict['gt_box_centers'][i][gt_ref_idx].detach().cpu().numpy())
+                        #pred_bbox = get_3d_box(data_dict['outputs']['size_unnormalized'][i][pred_ref_idx].detach().cpu().numpy(),data_dict['outputs']['angle_continuous'][i][pred_ref_idx].detach().cpu().numpy(), data_dict['outputs']['center_unnormalized'][i][pred_ref_idx].detach().cpu().numpy())
+                        
                         #gt_bbox = data_dict['final_gt_box_corner'][i].detach().cpu().numpy()
                     iou = eval_ref_one_sample(pred_bbox, gt_bbox, args.detection_module)
                     ious.append(iou)
