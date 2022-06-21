@@ -144,22 +144,19 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
             # store the calibrated predictions and masks
             data_dict['cluster_ref'] = cluster_preds
         else:
-            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
-            # store the calibrated predictions and masks
-            data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
     
-        # chunking
-        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
-            pred_mask1 = pred_masks[0].repeat(len_nun_max, 1)
-            for i in range(batch_size):
-                if i != 0:
-                    pred_mask = pred_masks[i].repeat(len_nun_max, 1)
-                    pred_mask1 = torch.cat([pred_mask1, pred_mask], dim=0)
-            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_mask1, 1)  # (B,)
-        else:
-            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
-            # store the calibrated predictions and masks
-            data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
+            # chunking
+            if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+                pred_mask1 = pred_masks[0].repeat(len_nun_max, 1)
+                for i in range(batch_size):
+                    if i != 0:
+                        pred_mask = pred_masks[i].repeat(len_nun_max, 1)
+                        pred_mask1 = torch.cat([pred_mask1, pred_mask], dim=0)
+                pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_mask1, 1)  # (B,)
+            else:
+                pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
+                # store the calibrated predictions and masks
+                data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
 
         if use_oracle:
             pred_center = data_dict['center_label']  # (B,MAX_NUM_OBJ,3)
