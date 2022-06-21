@@ -156,9 +156,9 @@ def box3d_iou_batch(corners1, corners2):
     corners2_batch = corners2
     ious = []
     ious_2d = []
-    for i in range(corners2_batch.shape[0]):
-        corners1 = corners1_batch[i]
-        corners2 = corners2_batch[i]
+    for j in range(corners2_batch.shape[0]):
+        corners1 = corners1_batch[j]
+        corners2 = corners2_batch[j]
         # corner points are in counter clockwise order
         rect1 = [(corners1[i, 0], corners1[i, 2]) for i in range(3, -1, -1)]
         rect2 = [(corners2[i, 0], corners2[i, 2]) for i in range(3, -1, -1)]
@@ -174,6 +174,12 @@ def box3d_iou_batch(corners1, corners2):
         iou = inter_vol / (vol1 + vol2 - inter_vol)
         ious.append(iou)
         ious_2d.append(iou_2d)
+        '''
+        rect1 = [(corners1[:,i, 0], corners1[:,i, 2]) for i in range(3, -1, -1)]
+        rect2 = [(corners2[:,i, 0], corners2[:,i, 2]) for i in range(3, -1, -1)]
+        area1 = poly_area(np.array(rect1)[:, :, 0], np.array(rect1)[:, :, 1])
+        area2 = poly_area(np.array(rect2)[:, :, 0], np.array(rect2)[:, :, 1]) 
+        '''
         
     return np.array(ious), np.array(ious_2d)
 
