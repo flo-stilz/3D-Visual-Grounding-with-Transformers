@@ -262,9 +262,8 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                 #gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
                 objectness_masks = data_dict['objectness_scores'].max(2)[1].float().cpu().numpy() # batch_size, num_proposals
             elif args.detection_module == "3detr":
-                # TODO: maybe change that wiht gt_box_corners:
                 gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
-                #gt_bbox_batch = data_dict["gt_box_corners"][data_dict["ref_cluster_label"]]
+                gt_bbox_batch.detach().cpu().numpy()
             
             labels = np.zeros((len_nun_max, num_proposals))
             for j in range(len_nun_max):
@@ -321,7 +320,6 @@ def compute_reference_loss(data_dict, config, args, reference=True):
         if args.detection_module == "votenet":
             gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
         elif args.detection_module == "3detr":
-            # TODO: maybe change that wiht gt_box_corners:
             gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
             #gt_bbox_batch = data_dict["gt_box_corners"][data_dict["ref_cluster_label"]]
 
@@ -576,6 +574,10 @@ def loss_center(outputs, data_dict, assignments):
 
 def loss_giou(outputs, data_dict, assignments):
     gious_dist = 1 - outputs["gious"]
+    
+    ############
+    # set objectness labels:
+    data_dict['objectness_label'] = assignments["proposal_matched_mask"]
 
     # # Non vectorized version
     # giou_loss = torch.zeros(1, device=gious_dist.device).squeeze()

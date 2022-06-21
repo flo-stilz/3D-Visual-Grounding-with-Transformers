@@ -71,93 +71,96 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
             
     if args.detection_module == "votenet":
         objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
-        objectness_labels_batch = data_dict['objectness_label'].long()
+    elif args.detection_module == "3detr":
+        objectness_preds_batch = torch.argmax(torch.as_tensor((data_dict['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32),0)
+    objectness_labels_batch = data_dict['objectness_label'].long()
     
-        if post_processing:
-            _ = parse_predictions(data_dict, post_processing)
-            nms_masks = torch.LongTensor(data_dict['pred_mask']).cuda()
-    
-            # construct valid mask
-            pred_masks = (nms_masks * objectness_preds_batch == 1).float()
-            label_masks = (objectness_labels_batch == 1).float()
-        else:
-            # construct valid mask
-            pred_masks = (objectness_preds_batch == 1).float()
-            label_masks = (objectness_labels_batch == 1).float()
+    if post_processing:
+        _ = parse_predictions(data_dict, post_processing)
+        nms_masks = torch.LongTensor(data_dict['pred_mask']).cuda()
 
-        # this might be wrong: 
+        # construct valid mask
+        pred_masks = (nms_masks * objectness_preds_batch == 1).float()
+        label_masks = (objectness_labels_batch == 1).float()
+    else:
+        # construct valid mask
+        pred_masks = (objectness_preds_batch == 1).float()
+        label_masks = (objectness_labels_batch == 1).float()
+
+    # this might be wrong: 
+    # chunking
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1,pred_masks.shape[1])
+        preds = torch.zeros(data_dict["cluster_ref"].shape).cuda()
+    else:
+        cluster_preds = torch.argmax(data_dict["cluster_ref"] * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
+        preds = torch.zeros(pred_masks.shape).cuda()
+
+    preds = preds.scatter_(1, cluster_preds, 1)
+    cluster_preds = preds
+    
+    # chunking
+    if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+        cluster_labels = data_dict["cluster_labels"].reshape(batch_size*len_nun_max, -1).float()
+        # cluster_labels *= label_masks
+    else:
+        cluster_labels = data_dict["cluster_labels"].float()
+        cluster_labels *= label_masks
+
+
+
+    # compute classification scores
+    corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
+    labels = torch.ones(corrects.shape[0]).cuda()
+    ref_acc = corrects / (labels + 1e-8)
+    
+    # store
+    data_dict["ref_acc"] = ref_acc.cpu().numpy().tolist()
+        
+    # compute localization metrics
+    if use_best:
+        pred_ref = torch.argmax(data_dict["cluster_labels"], 1)  # (B,)
+        # store the calibrated predictions and masks
+        data_dict['cluster_ref'] = data_dict["cluster_labels"]
+    if use_cat_rand:
+        cluster_preds = torch.zeros(cluster_labels.shape).cuda()
+        for i in range(cluster_preds.shape[0]):
+            num_bbox = data_dict["num_bbox"][i]
+            sem_cls_label = data_dict["sem_cls_label"][i]
+            # sem_cls_label = torch.argmax(end_points["sem_cls_scores"], 2)[i]
+            sem_cls_label[num_bbox:] -= 1
+            candidate_masks = torch.gather(sem_cls_label == data_dict["object_cat"][i], 0, 
+                                            data_dict["object_assignment"][i])
+            candidates = torch.arange(cluster_labels.shape[1])[candidate_masks]
+            try:
+                chosen_idx = torch.randperm(candidates.shape[0])[0]
+                chosen_candidate = candidates[chosen_idx]
+                cluster_preds[i, chosen_candidate] = 1
+            except IndexError:
+                cluster_preds[i, candidates] = 1
+        
+        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
+            pred_ref = torch.argmax(cluster_preds, -1)  # (B,)
+        else:
+            pred_ref = torch.argmax(cluster_preds, 1) # (B,)
+        # store the calibrated predictions and masks
+        data_dict['cluster_ref'] = cluster_preds
+    else:
+
         # chunking
         if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
-            cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1,pred_masks.shape[1])
-            preds = torch.zeros(data_dict["cluster_ref"].shape).cuda()
+            pred_mask1 = pred_masks[0].repeat(len_nun_max, 1)
+            for i in range(batch_size):
+                if i != 0:
+                    pred_mask = pred_masks[i].repeat(len_nun_max, 1)
+                    pred_mask1 = torch.cat([pred_mask1, pred_mask], dim=0)
+            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_mask1, 1)  # (B,)
         else:
-            cluster_preds = torch.argmax(data_dict["cluster_ref"] * pred_masks, 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
-            preds = torch.zeros(pred_masks.shape).cuda()
-    
-        preds = preds.scatter_(1, cluster_preds, 1)
-        cluster_preds = preds
-    
-        # chunking
-        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
-            cluster_labels = data_dict["cluster_labels"].reshape(batch_size*len_nun_max, -1).float()
-            # cluster_labels *= label_masks
-        else:
-            cluster_labels = data_dict["cluster_labels"].float()
-            cluster_labels *= label_masks
-
-    
-    
-        # compute classification scores
-        corrects = torch.sum((cluster_preds == 1) * (cluster_labels == 1), dim=1).float()
-        labels = torch.ones(corrects.shape[0]).cuda()
-        ref_acc = corrects / (labels + 1e-8)
-        
-        # store
-        data_dict["ref_acc"] = ref_acc.cpu().numpy().tolist()
-        
-        # compute localization metrics
-        if use_best:
-            pred_ref = torch.argmax(data_dict["cluster_labels"], 1)  # (B,)
+            pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
             # store the calibrated predictions and masks
-            data_dict['cluster_ref'] = data_dict["cluster_labels"]
-        if use_cat_rand:
-            cluster_preds = torch.zeros(cluster_labels.shape).cuda()
-            for i in range(cluster_preds.shape[0]):
-                num_bbox = data_dict["num_bbox"][i]
-                sem_cls_label = data_dict["sem_cls_label"][i]
-                # sem_cls_label = torch.argmax(end_points["sem_cls_scores"], 2)[i]
-                sem_cls_label[num_bbox:] -= 1
-                candidate_masks = torch.gather(sem_cls_label == data_dict["object_cat"][i], 0, 
-                                                data_dict["object_assignment"][i])
-                candidates = torch.arange(cluster_labels.shape[1])[candidate_masks]
-                try:
-                    chosen_idx = torch.randperm(candidates.shape[0])[0]
-                    chosen_candidate = candidates[chosen_idx]
-                    cluster_preds[i, chosen_candidate] = 1
-                except IndexError:
-                    cluster_preds[i, candidates] = 1
-            
-            if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
-                pred_ref = torch.argmax(cluster_preds, -1)  # (B,)
-            else:
-                pred_ref = torch.argmax(cluster_preds, 1) # (B,)
-            # store the calibrated predictions and masks
-            data_dict['cluster_ref'] = cluster_preds
-        else:
+            data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
     
-            # chunking
-            if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
-                pred_mask1 = pred_masks[0].repeat(len_nun_max, 1)
-                for i in range(batch_size):
-                    if i != 0:
-                        pred_mask = pred_masks[i].repeat(len_nun_max, 1)
-                        pred_mask1 = torch.cat([pred_mask1, pred_mask], dim=0)
-                pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_mask1, 1)  # (B,)
-            else:
-                pred_ref = torch.argmax(data_dict['cluster_ref'] * pred_masks, 1) # (B,)
-                # store the calibrated predictions and masks
-                data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
-
+    if args.detection_module == "votenet":
         if use_oracle:
             pred_center = data_dict['center_label']  # (B,MAX_NUM_OBJ,3)
             pred_heading_class = data_dict['heading_class_label']  # B,K2
@@ -183,9 +186,10 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
             pred_size_class = pred_size_class
             pred_size_residual = pred_size_residual.squeeze(2)  # B,num_proposal,3
 
-        # store
-        data_dict["pred_mask"] = pred_masks
-        data_dict["label_mask"] = label_masks
+    # store
+    data_dict["pred_mask"] = pred_masks
+    data_dict["label_mask"] = label_masks
+    if args.detection_module == "votenet":
         data_dict['pred_center'] = pred_center
         data_dict['pred_heading_class'] = pred_heading_class
         data_dict['pred_heading_residual'] = pred_heading_residual
@@ -212,7 +216,8 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
     # chunking used
     if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
         lang_num = data_dict["lang_num"]
-        pred_ref = pred_ref.reshape(batch_size, len_nun_max)
+        if args.detection_module == "votenet":
+            pred_ref = pred_ref.reshape(batch_size, len_nun_max)
         for i in range(batch_size):
             # compute the iou
             for j in range(len_nun_max):
@@ -342,6 +347,6 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
         sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1) # (B,K)
         sem_match = (sem_cls_label == sem_cls_pred).float()
         data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
-
+        
     return data_dict
 
