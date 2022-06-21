@@ -337,12 +337,13 @@ def get_3d_box_batch_tensor(box_size, angle, center):
     corners_3d[..., :, 0] = torch.cat(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
-    corners_3d[..., :, 1] = torch.cat(
+    corners_3d[..., :, 2] = torch.cat(
         (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
     )
-    corners_3d[..., :, 2] = torch.cat(
+    corners_3d[..., :, 1] = torch.cat(
         (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
     )
+    # swaped dimesnions for the last two -> try also for solely obj_det
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape) + 1, len(input_shape)]
     corners_3d = torch.matmul(corners_3d, R.permute(tlist))

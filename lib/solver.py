@@ -400,7 +400,7 @@ class Solver():
         
         for data_dict in dataloader:
             # lr scheduler step for 3DETR:
-            if self.detection_module == "3detr":
+            if self.detection_module == "3detr" and self.detection:
                 curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / self._total_iter["train"])
             else:
                 # Might have to fix that:
@@ -555,12 +555,12 @@ class Solver():
             "optimizer_state_dict": self.optimizer.state_dict()
         }
         checkpoint_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-        #torch.save(save_dict, os.path.join(checkpoint_root, "checkpoint.tar"))
+        torch.save(save_dict, os.path.join(checkpoint_root, "checkpoint.tar"))
 
         # save model
         self._log("saving last models...\n")
         model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-        #torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
+        torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
 
         # export
         for phase in ["train", "val"]:
