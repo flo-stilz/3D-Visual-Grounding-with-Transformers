@@ -15,8 +15,9 @@ from utils.nn_distance import nn_distance, huber_loss
 from lib.ap_helper import parse_predictions
 from lib.loss import SoftmaxRankingLoss
 from utils.box_util import get_3d_box, get_3d_box_batch, box3d_iou
+from DETR.utils.box_util import box3d_iou as box3d_iou_detr
 
-def eval_ref_one_sample(pred_bbox, gt_bbox):
+def eval_ref_one_sample(pred_bbox, gt_bbox, detection_module):
     """ Evaluate one reference prediction
 
     Args:
@@ -25,8 +26,11 @@ def eval_ref_one_sample(pred_bbox, gt_bbox):
     Returns:
         iou: intersection over union score
     """
-
-    iou = box3d_iou(pred_bbox, gt_bbox)
+    if detection_module == "votenet":
+        iou = box3d_iou(pred_bbox, gt_bbox)
+    elif detection_module == "3detr":
+        iou, _ = box3d_iou_detr(pred_bbox, gt_bbox)
+    
 
     return iou
 
@@ -250,7 +254,7 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                         gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
                         gt_bbox = gt_bbox.detach().cpu().numpy()
                         #gt_bbox = data_dict['final_gt_box_corner'][i].detach().cpu().numpy()
-                    iou = eval_ref_one_sample(pred_bbox, gt_bbox)
+                    iou = eval_ref_one_sample(pred_bbox, gt_bbox, args.detection_module)
                     ious.append(iou)
 
                     # NOTE: get_3d_box() will return problematic bboxes
@@ -299,7 +303,7 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                 gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
                 gt_bbox = gt_bbox.detach().cpu().numpy()
                 
-            iou = eval_ref_one_sample(pred_bbox, gt_bbox)
+            iou = eval_ref_one_sample(pred_bbox, gt_bbox, args.detection_module)
             ious.append(iou)
 
             # NOTE: get_3d_box() will return problematic bboxes

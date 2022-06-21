@@ -140,6 +140,43 @@ def box3d_iou(corners1, corners2):
     iou = inter_vol / (vol1 + vol2 - inter_vol)
     return iou, iou_2d
 
+def box3d_iou_batch(corners1, corners2):
+    """Compute 3D bounding box IoU.
+
+    Input:
+        corners1: numpy array (N,8,3), assume up direction is negative Y
+        corners2: numpy array (N,8,3), assume up direction is negative Y
+    Output:
+        iou: 3D bounding box IoU
+        iou_2d: bird's eye view 2D bounding box IoU
+
+    todo (rqi): add more description on corner points' orders.
+    """
+    corners1_batch = corners1
+    corners2_batch = corners2
+    ious = []
+    ious_2d = []
+    for i in range(corners2_batch.shape[0]):
+        corners1 = corners1_batch[i]
+        corners2 = corners2_batch[i]
+        # corner points are in counter clockwise order
+        rect1 = [(corners1[i, 0], corners1[i, 2]) for i in range(3, -1, -1)]
+        rect2 = [(corners2[i, 0], corners2[i, 2]) for i in range(3, -1, -1)]
+        area1 = poly_area(np.array(rect1)[:, 0], np.array(rect1)[:, 1])
+        area2 = poly_area(np.array(rect2)[:, 0], np.array(rect2)[:, 1])
+        inter, inter_area = convex_hull_intersection(rect1, rect2)
+        iou_2d = inter_area / (area1 + area2 - inter_area)
+        ymax = min(corners1[0, 1], corners2[0, 1])
+        ymin = max(corners1[4, 1], corners2[4, 1])
+        inter_vol = inter_area * max(0.0, ymax - ymin)
+        vol1 = box3d_vol(corners1)
+        vol2 = box3d_vol(corners2)
+        iou = inter_vol / (vol1 + vol2 - inter_vol)
+        ious.append(iou)
+        ious_2d.append(iou_2d)
+        
+    return np.array(ious), np.array(ious_2d)
+
 
 def get_iou(bb1, bb2):
     """
@@ -337,13 +374,13 @@ def get_3d_box_batch_tensor(box_size, angle, center):
     corners_3d[..., :, 0] = torch.cat(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
-    corners_3d[..., :, 2] = torch.cat(
+    corners_3d[..., :, 1] = torch.cat(
         (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
     )
-    corners_3d[..., :, 1] = torch.cat(
+    corners_3d[..., :, 2] = torch.cat(
         (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
     )
-    # swaped dimesnions for the last two -> try also for solely obj_det
+    # might want to swap dimesnions for the last two above -> try also for solely obj_det
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape) + 1, len(input_shape)]
     corners_3d = torch.matmul(corners_3d, R.permute(tlist))

@@ -40,7 +40,14 @@ class RefNet(nn.Module):
         # --------- Object Detection ------------
         if self.args.detection_module == "3detr":
             self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
-            self.Object_Feature_MLP = nn.Linear(256, 128) # convert box_features to transfer it to match module # maybe change design
+            self.Object_Feature_MLP = nn.Sequential( # convert box_features to transfer it to match module # maybe change design
+                    #nn.Dropout(p=0.1),
+                    #nn.Linear(256, 256),
+                    #nn.PRelU(),
+                    #nn.Dropout(p=0.1),
+                    nn.Linear(256, 128),
+                    )
+                    
         # --------- PROPOSAL GENERATION ---------
         # Backbone point feature learning
         elif self.args.detection_module == "votenet": 

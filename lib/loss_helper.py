@@ -19,6 +19,7 @@ from DETR.utils.box_util import generalized_box3d_iou
 from scipy.optimize import linear_sum_assignment
 from DETR.utils.dist import all_reduce_average
 from DETR.datasets import build_dataset
+from DETR.utils.box_util import box3d_iou_batch as box3d_iou_batch_detr
 
 FAR_THRESHOLD = 0.6
 # FAR_THRESHOLD = 0.3 # from dvg try once
@@ -277,7 +278,10 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                     elif args.detection_module == "3detr":
                         pred_bbox_batch = data_dict['outputs']['box_corners'][i]
                         pred_bbox_batch = pred_bbox_batch.detach().cpu().numpy()
-                    ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
+                    if args.detection_module == "votenet":
+                        ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
+                    elif args.detection_module == "3detr":
+                        ious, _ = box3d_iou_batch_detr(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
 
                     # increases training difficulty. Could be used
                     #if data_dict["istrain"][0] == 1 and reference and data_dict["random"] < 0.5:
@@ -335,7 +339,10 @@ def compute_reference_loss(data_dict, config, args, reference=True):
             elif args.detection_module == "3detr":
                 pred_bbox_batch = data_dict['outputs']['box_corners'][i]
                 pred_bbox_batch = pred_bbox_batch.detach().cpu().numpy()
-            ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
+            if args.detection_module == "votenet":
+                ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
+            elif args.detection_module == "3detr":
+                ious, _ = box3d_iou_batch_detr(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
             labels[i, ious.argmax()] = 1 # treat the bbox with highest iou score as the gt
 
         cluster_labels = torch.FloatTensor(labels).cuda()
