@@ -98,12 +98,18 @@ def convex_hull_intersection(p1, p2):
     else:
         return None, 0.0
 
-
 def box3d_vol(corners):
     """corners: (8,3) no assumption on axis direction"""
     a = np.sqrt(np.sum((corners[0, :] - corners[1, :]) ** 2))
     b = np.sqrt(np.sum((corners[1, :] - corners[2, :]) ** 2))
     c = np.sqrt(np.sum((corners[0, :] - corners[4, :]) ** 2))
+    return a * b * c
+
+def box3d_vol_batch(corners):
+    """corners: (8,3) no assumption on axis direction"""
+    a = np.sqrt(np.sum((corners[:, 0, :] - corners[:, 1, :]) ** 2))
+    b = np.sqrt(np.sum((corners[:, 1, :] - corners[:, 2, :]) ** 2))
+    c = np.sqrt(np.sum((corners[:, 0, :] - corners[:, 4, :]) ** 2))
     return a * b * c
 
 
@@ -152,36 +158,42 @@ def box3d_iou_batch(corners1, corners2):
 
     todo (rqi): add more description on corner points' orders.
     """
-    corners1_batch = corners1
-    corners2_batch = corners2
+    #corners1_batch = corners1
+    #corners2_batch = corners2
     ious = []
-    ious_2d = []
-    for j in range(corners2_batch.shape[0]):
-        corners1 = corners1_batch[j]
-        corners2 = corners2_batch[j]
-        # corner points are in counter clockwise order
-        rect1 = [(corners1[i, 0], corners1[i, 2]) for i in range(3, -1, -1)]
-        rect2 = [(corners2[i, 0], corners2[i, 2]) for i in range(3, -1, -1)]
-        area1 = poly_area(np.array(rect1)[:, 0], np.array(rect1)[:, 1])
-        area2 = poly_area(np.array(rect2)[:, 0], np.array(rect2)[:, 1])
-        inter, inter_area = convex_hull_intersection(rect1, rect2)
-        iou_2d = inter_area / (area1 + area2 - inter_area)
-        ymax = min(corners1[0, 1], corners2[0, 1])
-        ymin = max(corners1[4, 1], corners2[4, 1])
-        inter_vol = inter_area * max(0.0, ymax - ymin)
-        vol1 = box3d_vol(corners1)
-        vol2 = box3d_vol(corners2)
-        iou = inter_vol / (vol1 + vol2 - inter_vol)
-        ious.append(iou)
-        ious_2d.append(iou_2d)
-        '''
-        rect1 = [(corners1[:,i, 0], corners1[:,i, 2]) for i in range(3, -1, -1)]
-        rect2 = [(corners2[:,i, 0], corners2[:,i, 2]) for i in range(3, -1, -1)]
-        area1 = poly_area(np.array(rect1)[:, :, 0], np.array(rect1)[:, :, 1])
-        area2 = poly_area(np.array(rect2)[:, :, 0], np.array(rect2)[:, :, 1]) 
-        '''
+    #ious_2d = []
+    #for j in range(corners2_batch.shape[0]):
+        #corners1 = corners1_batch[j]
+        #corners2 = corners2_batch[j]
+    # corner points are in counter clockwise order
+    rect1 = [(corners1[:, i, 0], corners1[:, i, 2]) for i in range(3, -1, -1)]
+    rect2 = [(corners2[:, i, 0], corners2[:, i, 2]) for i in range(3, -1, -1)]
+    print(rect1.size())
+    #area1 = poly_area(np.array(rect1)[:, 0], np.array(rect1)[:, 1])
+    #area2 = poly_area(np.array(rect2)[:, 0], np.array(rect2)[:, 1])
+    inter_batch = []
+    inter_area_batch = []
+    for j in range(corners1.shape[0]):
+        inter, inter_area = convex_hull_intersection(rect1[j], rect2[j])
+        inter_batch.append(inter)
+        inter_area_batch.append(inter_area)
+    #iou_2d = inter_area / (area1 + area2 - inter_area)
+    ymax = min(corners1[:, 0, 1], corners2[:, 0, 1])
+    ymin = max(corners1[:, 4, 1], corners2[:, 4, 1])
+    inter_vol = inter_area_batch * np.maximum(0.0, ymax - ymin)
+    vol1 = box3d_vol_batch(corners1) # adjust
+    vol2 = box3d_vol_batch(corners2) # adjust
+    ious = inter_vol / (vol1 + vol2 - inter_vol)
+    #ious.append(iou)
+    #ious_2d.append(iou_2d)
+    '''
+    rect1 = [(corners1[:,i, 0], corners1[:,i, 2]) for i in range(3, -1, -1)]
+    rect2 = [(corners2[:,i, 0], corners2[:,i, 2]) for i in range(3, -1, -1)]
+    area1 = poly_area(np.array(rect1)[:, :, 0], np.array(rect1)[:, :, 1])
+    area2 = poly_area(np.array(rect2)[:, :, 0], np.array(rect2)[:, :, 1]) 
+    '''
         
-    return np.array(ious), np.array(ious_2d)
+    return np.array(ious)#, np.array(ious_2d)
 
 
 def get_iou(bb1, bb2):
