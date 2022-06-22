@@ -5,6 +5,7 @@
 
 """ Helper functions and class to calculate Average Precisions for 3D object detection.
 """
+'''
 import logging
 import os
 import sys
@@ -448,3 +449,4 @@ class APCalculator(object):
         self.gt_map_cls = {}  # {scan_id: [(classname, bbox)]}
         self.pred_map_cls = {}  # {scan_id: [(classname, bbox, score)]}
         self.scan_cnt = 0
+'''

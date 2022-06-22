@@ -10,6 +10,7 @@ import numpy as np
 from scipy.spatial import ConvexHull, Delaunay
 from DETR.utils.misc import to_list_1d, to_list_3d
 
+
 try:
     from utils.box_intersection import box_intersection
 except ImportError:
@@ -17,7 +18,7 @@ except ImportError:
         "Could not import cythonized box intersection. Consider compiling box_intersection.pyx for faster training."
     )
     box_intersection = None
-
+    
 
 def in_hull(p, hull):
     if not isinstance(hull, Delaunay):
@@ -290,9 +291,12 @@ def get_3d_box(box_size, heading_angle, center):
     """
     R = roty(heading_angle)
     l, w, h = box_size
-    x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2]
-    y_corners = [h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2]
-    z_corners = [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2]
+    #x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2]
+    #y_corners = [h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2]
+    #z_corners = [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2]
+    x_corners = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2]
+    y_corners = [w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2]
+    z_corners = [h/2,h/2,h/2,h/2,-h/2,-h/2,-h/2,-h/2]
     corners_3d = np.dot(R, np.vstack([x_corners, y_corners, z_corners]))
     corners_3d[0, :] = corners_3d[0, :] + center[0]
     corners_3d[1, :] = corners_3d[1, :] + center[1]
@@ -318,6 +322,7 @@ def get_3d_box_batch_np(box_size, angle, center):
     w = np.expand_dims(box_size[..., 1], -1)
     h = np.expand_dims(box_size[..., 2], -1)
     corners_3d = np.zeros(tuple(list(input_shape) + [8, 3]))
+    '''
     corners_3d[..., :, 0] = np.concatenate(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
@@ -326,6 +331,16 @@ def get_3d_box_batch_np(box_size, angle, center):
     )
     corners_3d[..., :, 2] = np.concatenate(
         (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
+    )
+    '''
+    corners_3d[..., :, 0] = np.concatenate(
+        (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
+    )
+    corners_3d[..., :, 1] = np.concatenate(
+        (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
+    )
+    corners_3d[..., :, 2] = np.concatenate(
+        (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
     )
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape) + 1, len(input_shape)]
@@ -383,6 +398,7 @@ def get_3d_box_batch_tensor(box_size, angle, center):
     corners_3d = torch.zeros(
         tuple(list(input_shape) + [8, 3]), device=box_size.device, dtype=torch.float32
     )
+    '''
     corners_3d[..., :, 0] = torch.cat(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
@@ -391,6 +407,16 @@ def get_3d_box_batch_tensor(box_size, angle, center):
     )
     corners_3d[..., :, 2] = torch.cat(
         (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
+    )
+    '''
+    corners_3d[..., :, 0] = torch.cat(
+        (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
+    )
+    corners_3d[..., :, 1] = torch.cat(
+        (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
+    )
+    corners_3d[..., :, 2] = torch.cat(
+        (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
     )
     # might want to swap dimesnions for the last two above -> try also for solely obj_det
     tlist = [i for i in range(len(input_shape))]
@@ -415,6 +441,7 @@ def get_3d_box_batch(box_size, angle, center):
     w = np.expand_dims(box_size[..., 1], -1)
     h = np.expand_dims(box_size[..., 2], -1)
     corners_3d = np.zeros(tuple(list(input_shape) + [8, 3]))
+    '''
     corners_3d[..., :, 0] = np.concatenate(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
@@ -423,6 +450,16 @@ def get_3d_box_batch(box_size, angle, center):
     )
     corners_3d[..., :, 2] = np.concatenate(
         (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
+    )
+    '''
+    corners_3d[..., :, 0] = np.concatenate(
+        (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
+    )
+    corners_3d[..., :, 2] = np.concatenate(
+        (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
+    )
+    corners_3d[..., :, 1] = np.concatenate(
+        (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
     )
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape) + 1, len(input_shape)]

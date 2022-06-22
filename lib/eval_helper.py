@@ -29,7 +29,7 @@ def eval_ref_one_sample(pred_bbox, gt_bbox, detection_module):
     if detection_module == "votenet":
         iou = box3d_iou(pred_bbox, gt_bbox)
     elif detection_module == "3detr":
-        iou, _ = box3d_iou_detr(pred_bbox, gt_bbox)
+        iou = box3d_iou(pred_bbox, gt_bbox)
         #iou = box3d_iou(pred_bbox, gt_bbox)
     
 
@@ -77,7 +77,7 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
     if args.detection_module == "votenet":
         objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
     elif args.detection_module == "3detr":
-        objectness_preds_batch = torch.argmax(torch.as_tensor((data_dict['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32),0)
+        objectness_preds_batch = torch.as_tensor((data_dict['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32).squeeze(-1)
     objectness_labels_batch = data_dict['objectness_label'].long()
     
     if post_processing:
@@ -221,15 +221,15 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
     # chunking used
     if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
         lang_num = data_dict["lang_num"]
-        if args.detection_module == "votenet":
-            pred_ref = pred_ref.reshape(batch_size, len_nun_max)
+        pred_ref = pred_ref.reshape(batch_size, len_nun_max)
         for i in range(batch_size):
             # compute the iou
             for j in range(len_nun_max):
                 if j < lang_num[i]:
                     gt_ref_idx = gt_ref[i][j]
+                    #print(pred_ref.shape)
+                    pred_ref_idx = pred_ref[i][j]
                     if args.detection_module == "votenet":
-                        pred_ref_idx = pred_ref[i][j]
                         pred_obb = config.param2obb(
                             pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(),
                             pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(),
@@ -248,12 +248,13 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                         gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
                     elif args.detection_module == "3detr":
                         # add objectness masks
-                        cluster_ref = data_dict['cluster_ref']
-                        pred_ref_idx = torch.argmax(cluster_ref[i],0)
+                        #cluster_ref = data_dict['cluster_ref']
+                        #pred_ref_idx = torch.argmax(cluster_ref[i],0)
                         pred_bbox = data_dict['outputs']['box_corners'][i][pred_ref_idx]
                         pred_bbox = pred_bbox.detach().cpu().numpy()
                         gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
                         gt_bbox = gt_bbox.detach().cpu().numpy()
+                        
                         #gt_bbox = get_3d_box(data_dict['gt_box_sizes'][i][gt_ref_idx].detach().cpu().numpy(), data_dict['gt_box_angles'][i][gt_ref_idx].detach().cpu().numpy(), data_dict['gt_box_centers'][i][gt_ref_idx].detach().cpu().numpy())
                         #pred_bbox = get_3d_box(data_dict['outputs']['size_unnormalized'][i][pred_ref_idx].detach().cpu().numpy(),data_dict['outputs']['angle_continuous'][i][pred_ref_idx].detach().cpu().numpy(), data_dict['outputs']['center_unnormalized'][i][pred_ref_idx].detach().cpu().numpy())
                         

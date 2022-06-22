@@ -347,7 +347,7 @@ def compute_reference_loss(data_dict, config, args, reference=True):
             if args.detection_module == "votenet":
                 ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
             elif args.detection_module == "3detr":
-                ious, _ = box3d_iou_batch_detr(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
+                ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[i], (num_proposals, 1, 1)))
             labels[i, ious.argmax()] = 1 # treat the bbox with highest iou score as the gt
 
         cluster_labels = torch.FloatTensor(labels).cuda()
@@ -815,7 +815,7 @@ def get_loss(data_dict, config, args, detection=True, reference=True, use_lang_c
         loss = data_dict['vote_loss'] + 0.5*data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1*data_dict['sem_cls_loss'] \
             + 0.1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"]
     elif args.detection_module == "3detr":
-        loss = 1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"]# + 1*data_dict["obj_loss"]
+        loss = 1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"] + 1*data_dict["obj_loss"]
 
     loss *= 10 # amplify
 
