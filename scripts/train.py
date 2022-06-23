@@ -128,17 +128,17 @@ def get_solver(args, dataloader):
 
     # learning rate
 
-    '''
+    
     weight_dict = {
         # backbone + detection
-        'backbone_net': {'lr': 0.001},
-        'vgen': {'lr': 0.0005},
+        'backbone_net': {'lr': args.lr},
+        'vgen': {'lr': args.lr},
         # proposal
-        'proposal': {'lr': 0.0005},
+        'proposal': {'lr': args.lr},
         # language
         #'lang_encoder': {'lr': 0.0001},
         # matching
-        'match': {'lr': 0.0005},
+        'match': {'lr': args.lr},
 
         # from 3dvg
         #'detr': {'lr': 0.0001},
@@ -147,17 +147,15 @@ def get_solver(args, dataloader):
     }
 
     if args.lang_module == 'bert':
-        weight_dict['lang_encoder'] = {'lr': 0.0005}
+        weight_dict['lang_encoder'] = {'lr': args.lr_bert}
     else:
-        weight_dict['lang_encoder'] = {'lr': 0.001}
+        weight_dict['lang_encoder'] = {'lr': args.lr}
         
     
     params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
     # params = model.parameters()
     #optimizer = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
-    
-    
-    
+    '''
     if args.use_chunking:  
         param_list=[
                 {'params':model.backbone_net.parameters(), 'lr': args.lr},
@@ -196,11 +194,12 @@ def get_solver(args, dataloader):
 
     optimizer = optim.Adam(params,lr=args.lr, weight_decay=args.wd)
     '''
-    weight_dict = ''
+    # weight_dict = ''
     
+    optimizer = optim.Adam(params,lr=args.lr, weight_decay=args.wd)
     # print(f'params pointnet: {model.backbone_net.parameters()}')
 
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    # optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -437,7 +436,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="batch size", default=14) # initially 14
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
-    parser.add_argument("--val_step", type=int, help="iterations of validating", default=250)
+    parser.add_argument("--val_step", type=int, help="iterations of validating", default=1000)
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-6)
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")
@@ -461,6 +460,7 @@ if __name__ == "__main__":
     #language module
     parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
     parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
+    parser.add_argument("--num_bert_layers", type=int, help="bert layers", default=3)
     #match module
     parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
