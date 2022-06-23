@@ -400,7 +400,7 @@ class Solver():
         
         for data_dict in dataloader:
             # lr scheduler step for 3DETR:
-            if self.detection_module == "3detr" and self.detection:
+            if self.detection_module == "3detr" and self.args.no_reference:
                 curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / self._total_iter["train"])
             else:
                 # Might have to fix that:
@@ -522,7 +522,7 @@ class Solver():
                 # save model
                 self._log("saving best models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-                #torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
+                torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
 
     def _dump_log(self, phase):
         if self.detection_module == "votenet":

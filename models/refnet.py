@@ -13,6 +13,7 @@ from models.match_module import MatchModule
 from models.dvg_match_module import DVGMatchModule
 from models.Object_Detection import Object_Detection
 from models.BERT_module import BERTModule
+from models.vtrans_match_module import VTransMatchModule
 
 class RefNet(nn.Module):
     def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, args,
@@ -43,8 +44,8 @@ class RefNet(nn.Module):
             self.Object_Feature_MLP = nn.Sequential( # convert box_features to transfer it to match module # maybe change design
                     #nn.Dropout(p=0.1),
                     #nn.Linear(256, 256),
-                    #nn.PRelU(),
-                    #nn.Dropout(p=0.1),
+                    #nn.PReLU(),
+                    nn.Dropout(p=0.1),
                     nn.Linear(256, 128),
                     )
                     
@@ -83,8 +84,7 @@ class RefNet(nn.Module):
             elif self.args.match_module == 'dvg':
                 self.match = DVGMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
             elif self.args.match_module == "transformer":
-                pass
-                #self.match = TODO
+                self.match = VTransMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
             else:
                 AssertionError
             # self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)

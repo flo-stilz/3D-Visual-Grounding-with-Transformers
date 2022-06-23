@@ -74,7 +74,10 @@ def get_model(args):
     # trainable model
     if args.use_pretrained:
         # load model
-        print("loading pretrained 3DETRm...")
+        if args.detection_module == "votenet":
+            print("loading pretrained VoteNet...")
+        elif args.detection_module == "3detr":
+            print("loading pretrained 3DETRm...")
         pretrained_model = RefNet(
             num_class=DC.num_class,
             num_heading_bin=DC.num_heading_bin,
@@ -267,10 +270,14 @@ def get_solver(args, dataloader):
     weight_dict = ''
     
     # print(f'params pointnet: {model.backbone_net.parameters()}')
-
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    
+    if args.detection_module == "votenet" or args.no_detection:
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
     # for 3DETR:
-    #optimizer = get_optimizer(args, model)
+    elif args.detection_module == "3detr" and args.no_reference:
+        optimizer = get_optimizer(args, model)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -490,8 +497,8 @@ def train(args):
 
         # solely for quick testing:
         #######################################
-        #scanrefer_train = scanrefer_train[:100]
-        #scanrefer_val = scanrefer_val[:30]
+        #scanrefer_train = scanrefer_train[:20]
+        #scanrefer_val = scanrefer_val[:10]
         #######################################
         scanrefer = {
             "train": scanrefer_train,
@@ -522,7 +529,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, help="batch size", default=14) # initially 14
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10) # default 10
-    parser.add_argument("--val_step", type=int, help="iterations of validating", default=700)
+    parser.add_argument("--val_step", type=int, help="iterations of validating", default=1000)
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3) # default 1e-3
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-6) # default 1e-6
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")
@@ -549,6 +556,7 @@ if __name__ == "__main__":
     #match module
     parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
+    parser.add_argument("--m_enc_layers", type=int, default=1, help="Amount of encoder layers for matching module when using vanilla transformer")
     # detection module
     parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")
     # 3DETR optimizer
