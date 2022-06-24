@@ -185,7 +185,7 @@ def get_optimizer(args, model):
         param_groups = [
             {"params": params_with_decay, "weight_decay": args.weight_decay},
         ]
-    optimizer = torch.optim.AdamW(param_groups, lr=args.lr)
+    optimizer = torch.optim.AdamW(param_groups, lr=args.detr_lr)
     return optimizer
 
 def get_num_params(model):
@@ -272,12 +272,20 @@ def get_solver(args, dataloader):
     # print(f'params pointnet: {model.backbone_net.parameters()}')
     
     if args.detection_module == "votenet" or args.no_detection:
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+        optimizer_main = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
     # for 3DETR:
     elif args.detection_module == "3detr" and args.no_reference:
-        optimizer = get_optimizer(args, model)
+        optimizer_main = get_optimizer(args, model)
     else:
-        optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        print(str(detr_params/1000000) + " mil. parameters in Detection module")
+        optimizer_det = get_optimizer(args, model.Object_Detection)
+        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.lang_encoder.parameters()) + list(model.match.parameters())
+        total_params = sum(p.numel() for p in model.parameters())
+        #print(pytorch_total_params)
+        other_params = sum(p.numel() for p in rest_params)
+        print(str(other_params/1000000) + " mil. parameters for other modules")
+        optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -303,7 +311,8 @@ def get_solver(args, dataloader):
         config=DC,
         args=args,
         dataloader=dataloader, 
-        optimizer=optimizer, 
+        optimizer_main=optimizer_main, 
+        optimizer_det=optimizer_det,
         stamp=stamp, 
         val_step=args.val_step,
         detection=not args.no_detection,
@@ -560,6 +569,7 @@ if __name__ == "__main__":
     # detection module
     parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")
     # 3DETR optimizer
+    parser.add_argument("--detr_lr", default=5e-4, type=float)
     parser.add_argument("--warm_lr", default=1e-6, type=float)
     parser.add_argument("--warm_lr_epochs", default=9, type=int)
     parser.add_argument("--final_lr", default=1e-6, type=float)

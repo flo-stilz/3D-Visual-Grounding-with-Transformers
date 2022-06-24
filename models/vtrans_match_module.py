@@ -14,17 +14,6 @@ class VTransMatchModule(nn.Module):
         self.hidden_size = hidden_size
         self.num_encoder_layers = args.m_enc_layers
         
-        '''
-        self.decoder_layer = nn.TransformerDecoderLayer(
-            d_model=1,
-            nhead=8,
-            dim_feedforward=256,
-            dropout=0.1,
-        )
-        self.decoder = nn.TransformerDecoder(
-            decoder_layer, num_layers=1, return_intermediate=True
-        )
-        '''
         #self.vt_fuse = nn.Transformer(d_model=self.lang_size+128, nhead=8, num_encoder_layers=1, num_decoder_layers=1, dim_feedforward=256, dropout=0.1, custom_encoder=None, custom_decoder=self.decoder)
         self.encoder_layer = nn.TransformerEncoderLayer(
                 d_model=self.lang_size+128,

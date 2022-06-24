@@ -41,7 +41,7 @@ ITER_REPORT_TEMPLATE_V = """
 [info] mean_eval_time: {mean_eval_time}s
 [info] mean_iter_time: {mean_iter_time}s
 [info] ETA: {eta_h}h {eta_m}m {eta_s}s
-[info] LR: {curr_lr}
+[info] Main_LR: {curr_lr}
 """
 
 EPOCH_REPORT_TEMPLATE_V = """
@@ -102,7 +102,8 @@ ITER_REPORT_TEMPLATE = """
 [info] mean_eval_time: {mean_eval_time}s
 [info] mean_iter_time: {mean_iter_time}s
 [info] ETA: {eta_h}h {eta_m}m {eta_s}s
-[info] LR: {curr_lr}
+[info] Main_LR: {curr_lr}
+[info] 3DETR_LR: [curr_lr_det]
 """
 
 EPOCH_REPORT_TEMPLATE = """
@@ -159,7 +160,7 @@ def adjust_learning_rate(args, optimizer, curr_epoch):
     return curr_lr
 
 class Solver():
-    def __init__(self, model, config, args, dataloader, optimizer, stamp, val_step=10, 
+    def __init__(self, model, config, args, dataloader, optimizer_main, optimizer_det, stamp, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
     lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None, detection_module="votenet"):
 
@@ -170,7 +171,8 @@ class Solver():
         self.config = config
         self.args = args
         self.dataloader = dataloader
-        self.optimizer = optimizer
+        self.optimizer_main = optimizer_main
+        self.optimizer_det = optimizer_det
         self.stamp = stamp
         self.val_step = val_step
 
@@ -344,10 +346,12 @@ class Solver():
 
     def _backward(self):
         # optimize
-        self.optimizer.zero_grad()
+        self.optimizer_main.zero_grad()
+        self.optimizer_det.zero_grad()
         self._running_log["loss"].backward()
-        self.optimizer.step()
-
+        self.optimizer_main.step()
+        self.optimizer_det.step()
+        
     def _compute_loss(self, data_dict):
         _, data_dict = get_loss(
             data_dict=data_dict, 
@@ -401,10 +405,11 @@ class Solver():
         for data_dict in dataloader:
             # lr scheduler step for 3DETR:
             if self.detection_module == "3detr" and self.args.no_reference:
-                curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / self._total_iter["train"])
+                curr_lr = adjust_learning_rate(self.args, self.optimizer_det, self._global_iter_id / self._total_iter["train"])
             else:
                 # Might have to fix that:
-                curr_lr = self.optimizer.param_groups[0]["lr"]
+                curr_lr = self.optimizer_main.param_groups[0]["lr"]
+                curr_lr_det = self.optimizer_det.param_groups[0]["lr"]
             # move to cuda
             for key in data_dict:
                 data_dict[key] = data_dict[key].cuda()
@@ -476,7 +481,10 @@ class Solver():
                 iter_time += self.log[phase]["eval"][-1]
                 self.log[phase]["iter_time"].append(iter_time)
                 if (self._global_iter_id + 1) % self.verbose == 0:
-                    self._train_report(epoch_id, curr_lr)
+                    if self.detection_module=="3detr":
+                        self._train_report(epoch_id, curr_lr, curr_lr_det)
+                    else:
+                        self._train_report(epoch_id, curr_lr, curr_lr)
 
                 # evaluation
                 if self._global_iter_id % self.val_step == 0:
@@ -552,7 +560,8 @@ class Solver():
         save_dict = {
             "epoch": epoch_id,
             "model_state_dict": self.model.state_dict(),
-            "optimizer_state_dict": self.optimizer.state_dict()
+            "optimizer_main_state_dict": self.optimizer_main.state_dict(),
+            "optimizer_det_state_dict": self.optimizer_det.state_dict()
         }
         checkpoint_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
         torch.save(save_dict, os.path.join(checkpoint_root, "checkpoint.tar"))
@@ -566,7 +575,7 @@ class Solver():
         for phase in ["train", "val"]:
             self._log_writer[phase].export_scalars_to_json(os.path.join(CONF.PATH.OUTPUT, self.stamp, "tensorboard/{}".format(phase), "all_scalars.json"))
 
-    def _train_report(self, epoch_id, curr_lr):
+    def _train_report(self, epoch_id, curr_lr, curr_lr_det):
         # compute ETA
         fetch_time = self.log["train"]["fetch"]
         forward_time = self.log["train"]["forward"]
@@ -630,7 +639,8 @@ class Solver():
             eta_h=eta["h"],
             eta_m=eta["m"],
             eta_s=eta["s"],
-            curr_lr=curr_lr
+            curr_lr=curr_lr,
+            curr_lr_det=curr_lr_det
             )
         self._log(iter_report)
 
