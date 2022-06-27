@@ -95,7 +95,7 @@ def get_model(args):
         #pretrained_model = Object_Detection(input_channels)
         if args.detection_module == "votenet":
         
-            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model.pth")
+            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
             pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
             # mount
             model.backbone_net = pretrained_model.backbone_net
@@ -116,8 +116,8 @@ def get_model(args):
                     param.requires_grad = False
         
         elif args.detection_module == "3detr": 
-        # 3DETR pretrained:
-        #print(pretrained_model)
+            # 3DETR pretrained:
+            #print(pretrained_model)
             '''
             print(input_channels)
             print(int(not args.no_height))
@@ -145,7 +145,7 @@ def get_model(args):
                     break
                 break
             '''
-            model.Object_Detection = pretrained_model
+            model.Object_Detection = pretrained_model.Object_Detection
             #print(model)
             
             if args.no_detection:
@@ -153,7 +153,6 @@ def get_model(args):
                 for param in model.Object_Detection.parameters():
                     param.requires_grad = False
                     
-            model.Object_Detection = pretrained_model
         #print(model)
     
     # to CUDA
@@ -271,21 +270,46 @@ def get_solver(args, dataloader):
     
     # print(f'params pointnet: {model.backbone_net.parameters()}')
     
-    if args.detection_module == "votenet" or args.no_detection:
+    if args.detection_module == "votenet":
         optimizer_main = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+        optimizer_det = None
+        optimizer_lang = None
     # for 3DETR:
+    
     elif args.detection_module == "3detr" and args.no_reference:
         optimizer_main = get_optimizer(args, model)
-    else:
+        optimizer_det = None
+        optimizer_lang = None
+    
+    elif args.detection_module=="3detr" and args.lang_module=="bert" and args.sep_optim:
         detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
         optimizer_det = get_optimizer(args, model.Object_Detection)
-        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.lang_encoder.parameters()) + list(model.match.parameters())
+        lang_params = list(model.lang_encoder.parameters())
+        optimizer_lang = optim.AdamW(lang_params, lr=args.lr_bert, weight_decay=args.bert_wd)
+        l_params = sum(p.numel() for p in model.lang_encoder.parameters())
+        print(str(l_params/1000000) + " mil. parameters in Language module")
+        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.match.parameters())
         total_params = sum(p.numel() for p in model.parameters())
         #print(pytorch_total_params)
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
+    elif args.detection_module == "3detr" and args.sep_optim:
+        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        print(str(detr_params/1000000) + " mil. parameters in Detection module")
+        optimizer_det = get_optimizer(args, model.Object_Detection)
+        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.lang_encoder.parameters())+ list(model.match.parameters())
+        total_params = sum(p.numel() for p in model.parameters())
+        #print(pytorch_total_params)
+        other_params = sum(p.numel() for p in rest_params)
+        print(str(other_params/1000000) + " mil. parameters for other modules")
+        optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
+        optimizer_lang = None
+    else:
+        optimizer_main = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
+        optimizer_det = None
+        optimizer_lang = None
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -293,7 +317,11 @@ def get_solver(args, dataloader):
         root = os.path.join(CONF.PATH.OUTPUT, stamp)
         checkpoint = torch.load(os.path.join(CONF.PATH.OUTPUT, args.use_checkpoint, "checkpoint.tar"))
         model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        optimizer_main.load_state_dict(checkpoint["optimizer_main_state_dict"])
+        if args.detection_module=="3detr" and args.sep_optim:
+            optimizer_det.load_state_dict(checkpoint["optimizer_det_state_dict"])
+        if args.lang_module=="bert" and args.sep_optim:
+            optimizer_lang.load_state_dict(checkpoint["optimizer_lang_state_dict"])
     else:
         stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if args.tag: stamp += "_"+args.tag.upper()
@@ -313,6 +341,7 @@ def get_solver(args, dataloader):
         dataloader=dataloader, 
         optimizer_main=optimizer_main, 
         optimizer_det=optimizer_det,
+        optimizer_lang=optimizer_lang,
         stamp=stamp, 
         val_step=args.val_step,
         detection=not args.no_detection,
@@ -562,6 +591,7 @@ if __name__ == "__main__":
     #language module
     parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
     parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
+    parser.add_argument("--bert_wd", type=float, help="weight decay for Language module", default=1e-6)
     #match module
     parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
@@ -579,6 +609,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--clip_gradient", default=0.1, type=float, help="Max L2 norm of the gradient"
     )
+    parser.add_argument("--sep_optim", action="store_true", help="Use seperate optimizers during training")
     args = parser.parse_args()
 
         

@@ -38,6 +38,17 @@ class VTransMatchModule(nn.Module):
             nn.BatchNorm1d(hidden_size),
             nn.Conv1d(hidden_size, 1, 1)
         )
+        # play with layers
+        # uses embeddings of transformer to output confidence scores
+        '''
+        self.selection = nn.Sequential(
+                nn.Dropout(p=0.1)
+                nn.Linear(hidden_size, hidden_size),
+                nn.PReLU(),
+                nn.Dropout(p=0.1),
+                nn.Linear(hidden_size, 1)
+                ) 
+        '''
 
     def forward(self, data_dict):
         """

@@ -82,7 +82,7 @@ class LangModule(nn.Module):
                 lang_fea = self.layer_norm(lang_fea)
                 lang_fea = self.mhatt(lang_fea, lang_fea, lang_fea, attention_mask)
 
-                data_dict["lang_fea"] = lang_fea
+                data_dict["lang_fea"] = lang_fea 
 
             # --------- End ---------
 
