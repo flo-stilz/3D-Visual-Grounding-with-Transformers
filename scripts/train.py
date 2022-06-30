@@ -371,15 +371,9 @@ def save_info(args, root, num_params, train_dataset, val_dataset, weight_dict):
     with open(os.path.join(root, "info.json"), "w") as f:
         json.dump(info, f, indent=4)
     
-    writer1 = tf.summary.create_file_writer(root + '/config')
-    write_string_summary_v2(writer1, get_summary_str(args, weight_dict))
-    '''
-    file_writer = tf.summary.create_file_writer(logdir)
+    #writer1 = tf.summary.create_file_writer(root + '/config')
+    #write_string_summary_v2(writer1, get_summary_str(args, weight_dict))
 
-    # Using the file writer, log the text.
-    with file_writer.as_default():
-        tf.summary.text("first_text", my_text, step=0)
-    '''
 
 
 def get_scannet_scene_list(split):
@@ -595,6 +589,7 @@ if __name__ == "__main__":
     #match module
     parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
+    parser.add_argument("--dvg_plus", action="store_true", help="Regularization for the training")
     parser.add_argument("--m_enc_layers", type=int, default=1, help="Amount of encoder layers for matching module when using vanilla transformer")
     # detection module
     parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")
