@@ -98,8 +98,8 @@ class DVGMatchModule(nn.Module):
             batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
 
         # copy paste part
-        #feature0 = features.clone()
-        ''' This is some random application of objectness mask
+        feature0 = features.clone()
+        # This is some random application of objectness mask
         if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
             obj_masks = objectness_masks.bool().squeeze(2)  # batch_size, num_proposals
             obj_lens = torch.zeros(batch_size, dtype=torch.int).cuda()
@@ -122,19 +122,20 @@ class DVGMatchModule(nn.Module):
                     feature0[i, obj_mask, :] = obj_features[j:j + obj_len, :]
                 else:
                     feature0[i, obj_mask[:total_len - obj_lens[i]], :] = obj_features[j:j + total_len - obj_lens[i], :]
-        '''
+        
         if self.args.lang_module == 'gru':
             lang_fea = data_dict["lang_fea"]
         elif self.args.lang_module == 'bert':
-            lang_fea = data_dict["lang_emb"]
+            lang_fea = data_dict["lang_emb"].unsqueeze(1)   
 
-        feature1 = features[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
+        feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
         if dist_weights is not None:
             dist_weights = dist_weights[:, None, :, :, :].repeat(1, len_nun_max, 1, 1, 1).reshape(batch_size*len_nun_max, dist_weights.shape[1], num_proposal, num_proposal)
 
 
-        print("features/ lang:", feature1.shape, lang_fea.shape) 
+        #print("features/ lang:", feature1.shape, lang_fea.shape) 
         # [224, 256, 128], [224, 60, 128] wobei die 60 verschieden sein kann
+        # batch size * number of desc (256), 
 
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"]) # query, key, value, 
 

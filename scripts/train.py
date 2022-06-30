@@ -138,7 +138,7 @@ def get_solver(args, dataloader):
         # language
         #'lang_encoder': {'lr': 0.0001},
         # matching
-        'match': {'lr': args.lr},
+        #'match': {'lr': args.lr},
 
         # from 3dvg
         #'detr': {'lr': 0.0001},
@@ -150,6 +150,11 @@ def get_solver(args, dataloader):
         weight_dict['lang_encoder'] = {'lr': args.lr_bert}
     else:
         weight_dict['lang_encoder'] = {'lr': args.lr}
+    
+    if args.match_module == 'dvg':
+        weight_dict['match'] = {'lr': 5e-5}
+    else:
+        weight_dict['match'] = {'lr': args.lr}
         
     
     params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)

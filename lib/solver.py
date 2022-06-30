@@ -206,7 +206,14 @@ class Solver():
                 if self.bn_scheduler:
                     print("update batch normalization momentum --> {}\n".format(self.bn_scheduler.lmbd(self.bn_scheduler.last_epoch)))
                     self.bn_scheduler.step()
-                
+                '''
+                if epoch_id == 7:
+                    print('check that this works')
+                    for param in self.model.lang_encoder.parameters():
+                        param.requires_grad = False
+                    
+                    #self.model.compile()
+                '''
             except KeyboardInterrupt:
                 # finish training
                 self._finish(epoch_id)
@@ -417,7 +424,7 @@ class Solver():
                 # save model
                 self._log("saving best models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-                #torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
+                torch.save(self.model.state_dict(), os.path.join(model_root, "model.pth"))
 
     def _dump_log(self, phase):
         log = {
