@@ -295,6 +295,31 @@ def get_solver(args, dataloader):
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
+
+    elif args.detection_module=="3detr" and args.lang_module=="bert" and args.match_module =="dvg" and args.sep_optim:
+        # det optim
+        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        print(str(detr_params/1000000) + " mil. parameters in Detection module")
+        optimizer_det = get_optimizer(args, model.Object_Detection)
+        # lang optim
+        lang_params = list(model.lang_encoder.parameters())
+        optimizer_lang = optim.AdamW(lang_params, lr=args.lr_bert, weight_decay=args.bert_wd)
+        l_params = sum(p.numel() for p in model.lang_encoder.parameters())
+        print(str(l_params/1000000) + " mil. parameters in Language module")
+        #dvg optim
+        match_params = list(model.match.parameters())
+        optimizer_match = optim.AdamW(match_params, lr=args.lr_match, weight_decay=args.match_wd)
+        l_params = sum(p.numel() for p in model.match.parameters())
+        print(str(l_params/1000000) + " mil. parameters in Language module")
+        # rest
+        rest_params = list(model.Object_Feature_MLP.parameters())
+        total_params = sum(p.numel() for p in model.parameters())
+        #print(pytorch_total_params)
+        other_params = sum(p.numel() for p in rest_params)
+        print(str(other_params/1000000) + " mil. parameters for other modules")
+        optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
+    
+
     elif args.detection_module == "3detr" and args.sep_optim:
         detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
@@ -591,6 +616,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
     parser.add_argument("--dvg_plus", action="store_true", help="Regularization for the training")
     parser.add_argument("--m_enc_layers", type=int, default=1, help="Amount of encoder layers for matching module when using vanilla transformer")
+    parser.add_argument("--match_lr", default=5e-5, type=float)
+    parser.add_argument("--match_wd", type=float, help="weight decay for Language module", default=1e-6)
     # detection module
     parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")
     # 3DETR optimizer
