@@ -49,7 +49,7 @@ def get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, split, config
         lang_module = args.lang_module
     )
     # dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=12)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
 
     return dataset, dataloader
 
@@ -195,106 +195,19 @@ def get_num_params(model):
 
 def get_solver(args, dataloader):
     model = get_model(args)
-
-    # learning rate
-
-    '''
-    weight_dict = {
-        # backbone + detection
-        'backbone_net': {'lr': 0.001},
-        'vgen': {'lr': 0.0005},
-        # proposal
-        'proposal': {'lr': 0.0005},
-        # language
-        #'lang_encoder': {'lr': 0.0001},
-        # matching
-        'match': {'lr': 0.0005},
-
-        # from 3dvg
-        #'detr': {'lr': 0.0001},
-        #'lang': {'lr': 0.0005},
-        #'match': {'lr': 0.0005},
-    }
-
-    if args.lang_module == 'bert':
-        weight_dict['lang_encoder'] = {'lr': 0.0005}
-    else:
-        weight_dict['lang_encoder'] = {'lr': 0.001}
-        
-    
-    params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
-    # params = model.parameters()
-    #optimizer = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
-    
-    
-    
-    if args.use_chunking:  
-        param_list=[
-                {'params':model.backbone_net.parameters(), 'lr': args.lr},
-                {'params':model.vgen.parameters(), 'lr':args.lr},
-                {'params':model.proposal.parameters(), 'lr': args.lr},
-                {'params':model.match.parameters(), 'lr': args.lr / 5},
-            ]
-        # language module
-        if args.lang_module == 'bert':
-            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr_bert})
-        else:
-            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr /10})
-        
-        # matching module
-        if args.match_module == 'bert':
-            param_list.append({'params':model.match.parameters(), 'lr': args.lr_bert})
-        else:
-            param_list.append({'params':model.match.parameters(), 'lr': args.lr})
-        
-    else:
-        param_list=[
-                {'params':model.backbone_net.parameters(), 'lr':args.lr},
-                {'params':model.vgen.parameters(), 'lr':args.lr},
-                {'params':model.proposal.parameters(), 'lr': args.lr},
-                {'params':model.match.parameters(), 'lr': args.lr},
-            ]
-        if args.lang_module == 'bert':
-            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr_bert})
-        else:
-            param_list.append({'params':model.lang_encoder.parameters(), 'lr': args.lr})
-
-    #if not args.label_lang_sup:
-    #    param_list.append( {'params':model.obj_clf.parameters(), 'lr': args.init_lr})
-    #if args.lang_module == 'bert':
-    #    param_list.append( {'params':model.lang_module.parameters(),'lr':args.lr_bert})
-
-    optimizer = optim.Adam(params,lr=args.lr, weight_decay=args.wd)
-    '''
-    weight_dict = ''
-    
-    # print(f'params pointnet: {model.backbone_net.parameters()}')
     
     if args.detection_module == "votenet":
         optimizer_main = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
         optimizer_det = None
         optimizer_lang = None
+        optimizer_match = None
     # for 3DETR:
     
     elif args.detection_module == "3detr" and args.no_reference:
         optimizer_main = get_optimizer(args, model)
         optimizer_det = None
         optimizer_lang = None
-    
-    elif args.detection_module=="3detr" and args.lang_module=="bert" and args.sep_optim:
-        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
-        print(str(detr_params/1000000) + " mil. parameters in Detection module")
-        optimizer_det = get_optimizer(args, model.Object_Detection)
-        lang_params = list(model.lang_encoder.parameters())
-        optimizer_lang = optim.AdamW(lang_params, lr=args.lr_bert, weight_decay=args.bert_wd)
-        l_params = sum(p.numel() for p in model.lang_encoder.parameters())
-        print(str(l_params/1000000) + " mil. parameters in Language module")
-        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.match.parameters())
-        total_params = sum(p.numel() for p in model.parameters())
-        #print(pytorch_total_params)
-        other_params = sum(p.numel() for p in rest_params)
-        print(str(other_params/1000000) + " mil. parameters for other modules")
-        optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
+        optimizer_match = None
 
     elif args.detection_module=="3detr" and args.lang_module=="bert" and args.match_module =="dvg" and args.sep_optim:
         # det optim
@@ -318,7 +231,22 @@ def get_solver(args, dataloader):
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
-    
+
+    elif args.detection_module=="3detr" and args.lang_module=="bert" and args.sep_optim:
+        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        print(str(detr_params/1000000) + " mil. parameters in Detection module")
+        optimizer_det = get_optimizer(args, model.Object_Detection)
+        lang_params = list(model.lang_encoder.parameters())
+        optimizer_lang = optim.AdamW(lang_params, lr=args.lr_bert, weight_decay=args.bert_wd)
+        l_params = sum(p.numel() for p in model.lang_encoder.parameters())
+        print(str(l_params/1000000) + " mil. parameters in Language module")
+        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.match.parameters())
+        total_params = sum(p.numel() for p in model.parameters())
+        #print(pytorch_total_params)
+        other_params = sum(p.numel() for p in rest_params)
+        print(str(other_params/1000000) + " mil. parameters for other modules")
+        optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
+        optimizer_match = None
 
     elif args.detection_module == "3detr" and args.sep_optim:
         detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
@@ -331,10 +259,12 @@ def get_solver(args, dataloader):
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
         optimizer_lang = None
+        optimizer_match = None
     else:
         optimizer_main = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
         optimizer_det = None
         optimizer_lang = None
+        optimizer_match = None
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -347,6 +277,8 @@ def get_solver(args, dataloader):
             optimizer_det.load_state_dict(checkpoint["optimizer_det_state_dict"])
         if args.lang_module=="bert" and args.sep_optim:
             optimizer_lang.load_state_dict(checkpoint["optimizer_lang_state_dict"])
+        if args.lang_module=="dvg" and args.sep_optim:
+            optimizer_match.load_state_dict(checkpoint["optimizer_match_state_dict"])
     else:
         stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         if args.tag: stamp += "_"+args.tag.upper()
@@ -359,6 +291,8 @@ def get_solver(args, dataloader):
     BN_DECAY_STEP = 20 if args.no_reference else None
     BN_DECAY_RATE = 0.5 if args.no_reference else None
 
+
+
     solver = Solver(
         model=model, 
         config=DC,
@@ -367,6 +301,7 @@ def get_solver(args, dataloader):
         optimizer_main=optimizer_main, 
         optimizer_det=optimizer_det,
         optimizer_lang=optimizer_lang,
+        optimizer_match=optimizer_match,
         stamp=stamp, 
         val_step=args.val_step,
         detection=not args.no_detection,
@@ -380,9 +315,9 @@ def get_solver(args, dataloader):
     )
     num_params = get_num_params(model)
 
-    return solver, num_params, root, weight_dict
+    return solver, num_params, root
 
-def save_info(args, root, num_params, train_dataset, val_dataset, weight_dict):
+def save_info(args, root, num_params, train_dataset, val_dataset):
     info = {}
     for key, value in vars(args).items():
         info[key] = value
@@ -571,12 +506,12 @@ def train(args):
         }
 
     print("initializing...")
-    solver, num_params, root, param_list = get_solver(args, dataloader)
+    solver, num_params, root = get_solver(args, dataloader)
     print("Parameters: " + str(num_params/1000000)+" mil")
 
     print("Start training...\n")
 
-    save_info(args, root, num_params, train_dataset, val_dataset, param_list)
+    save_info(args, root, num_params, train_dataset, val_dataset)
     solver(args.epoch, args.verbose)
 
 if __name__ == "__main__":
@@ -616,7 +551,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
     parser.add_argument("--dvg_plus", action="store_true", help="Regularization for the training")
     parser.add_argument("--m_enc_layers", type=int, default=1, help="Amount of encoder layers for matching module when using vanilla transformer")
-    parser.add_argument("--match_lr", default=5e-5, type=float)
+    parser.add_argument("--lr_match", default=5e-5, type=float)
     parser.add_argument("--match_wd", type=float, help="weight decay for Language module", default=1e-6)
     # detection module
     parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")

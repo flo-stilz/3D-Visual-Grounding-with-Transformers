@@ -105,6 +105,7 @@ ITER_REPORT_TEMPLATE = """
 [info] Main_LR: {curr_lr}
 [info] 3DETR_LR: {curr_lr_det}
 [info] BERT_LR: {curr_lr_lang}
+[info] MATCH_LR: {curr_lr_match}
 """
 
 EPOCH_REPORT_TEMPLATE = """
@@ -176,7 +177,7 @@ def reduce_learning_rate(args, optimizer, curr_epoch):
     return curr_lr
 
 class Solver():
-    def __init__(self, model, config, args, dataloader, optimizer_main, optimizer_det, optimizer_lang, stamp, val_step=10, 
+    def __init__(self, model, config, args, dataloader, optimizer_main, optimizer_det, optimizer_lang, optimizer_match, stamp, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
     lr_decay_step=None, lr_decay_rate=None, bn_decay_step=None, bn_decay_rate=None, detection_module="votenet"):
 
@@ -190,6 +191,7 @@ class Solver():
         self.optimizer_main = optimizer_main
         self.optimizer_det = optimizer_det
         self.optimizer_lang = optimizer_lang
+        self.optimizer_match = optimizer_match
         self.stamp = stamp
         self.val_step = val_step
 
@@ -197,6 +199,7 @@ class Solver():
         self.detection_module = detection_module
         self.reference = reference
         self.language_module = args.lang_module
+        self.match_module = args.match_module
         self.use_lang_classifier = use_lang_classifier
 
         self.lr_decay_step = lr_decay_step
@@ -369,13 +372,17 @@ class Solver():
             self.optimizer_det.zero_grad()
         if self.language_module == "bert" and self.args.sep_optim:
             self.optimizer_lang.zero_grad()
+        if self.match_module == "dvg" and self.args.sep_optim:
+            self.optimizer_match.zero_grad()
         self._running_log["loss"].backward()
         self.optimizer_main.step()
         if self.detection_module == "3detr" and self.args.sep_optim and self.detection:
             self.optimizer_det.step()
         if self.language_module == "bert" and self.args.sep_optim:
             self.optimizer_lang.step()
-        
+        if self.match_module == "dvg" and self.args.sep_optim:
+            self.optimizer_match.step()
+
         
     def _compute_loss(self, data_dict):
         _, data_dict = get_loss(
@@ -438,6 +445,8 @@ class Solver():
                 curr_lr = self.optimizer_main.param_groups[0]["lr"]
                 if self.language_module == "bert":
                     curr_lr_lang = self.optimizer_lang.param_groups[0]["lr"]
+                if self.match_module == "dvg":
+                    curr_lr_match = self.optimizer_match.param_groups[0]["lr"]
             else:
                 # Might have to fix that:
                 curr_lr = self.optimizer_main.param_groups[0]["lr"]
@@ -445,6 +454,8 @@ class Solver():
                     curr_lr_det = self.optimizer_det.param_groups[0]["lr"]
                 if self.language_module == "bert" and self.args.sep_optim:
                     curr_lr_lang = self.optimizer_lang.param_groups[0]["lr"]
+                if self.match_module == "dvg" and self.args.sep_optim:
+                    curr_lr_match = self.optimizer_match.param_groups[0]["lr"]
                 
             # move to cuda
             for key in data_dict:
@@ -518,7 +529,9 @@ class Solver():
                 self.log[phase]["iter_time"].append(iter_time)
                 if (self._global_iter_id + 1) % self.verbose == 0:
                     
-                    if self.detection_module == "3detr" and self.language_module == "bert" and self.detection and self.args.sep_optim:
+                    if self.detection_module == "3detr" and self.language_module == "bert" and self.match_module == "dvg" and self.detection and self.args.sep_optim:
+                        self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr_lang, curr_lr_match)
+                    elif self.detection_module == "3detr" and self.language_module == "bert" and self.detection and self.args.sep_optim:
                         self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr_lang)
                     elif self.detection_module=="3detr" and self.detection and self.args.sep_optim:
                         self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr)
@@ -598,7 +611,16 @@ class Solver():
 
         # save check point
         self._log("saving checkpoint...\n")
-        if self.detection_module == "3detr" and self.language_module=="bert" and self.args.sep_optim:
+        if self.detection_module == "3detr" and self.language_module=="bert" and self.match_module=="dvg"  and self.args.sep_optim:
+            save_dict = {
+                "epoch": epoch_id,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_main_state_dict": self.optimizer_main.state_dict(),
+                "optimizer_det_state_dict": self.optimizer_det.state_dict(),
+                "optimizer_lang_state_dict": self.optimizer_lang.state_dict(),
+                "optimizer_match_state_dict": self.optimizer_match.state_dict(),
+            }
+        elif self.detection_module == "3detr" and self.language_module=="bert" and self.args.sep_optim:
             save_dict = {
                 "epoch": epoch_id,
                 "model_state_dict": self.model.state_dict(),
@@ -631,7 +653,7 @@ class Solver():
         for phase in ["train", "val"]:
             self._log_writer[phase].export_scalars_to_json(os.path.join(CONF.PATH.OUTPUT, self.stamp, "tensorboard/{}".format(phase), "all_scalars.json"))
 
-    def _train_report(self, epoch_id, curr_lr, curr_lr_det, curr_lr_lang):
+    def _train_report(self, epoch_id, curr_lr, curr_lr_det, curr_lr_lang, curr_lr_match):
         # compute ETA
         fetch_time = self.log["train"]["fetch"]
         forward_time = self.log["train"]["forward"]
@@ -697,7 +719,8 @@ class Solver():
             eta_s=eta["s"],
             curr_lr=curr_lr,
             curr_lr_det=curr_lr_det,
-            curr_lr_lang=curr_lr_lang
+            curr_lr_lang=curr_lr_lang,
+            curr_lr_match=curr_lr_match,
             )
         self._log(iter_report)
 
