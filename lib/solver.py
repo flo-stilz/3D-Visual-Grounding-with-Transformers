@@ -160,6 +160,21 @@ def adjust_learning_rate(args, optimizer, curr_epoch):
         param_group["lr"] = curr_lr
     return curr_lr
 
+def reduce_learning_rate(args, optimizer, curr_epoch):
+    if curr_epoch<20:
+        curr_lr = args.lr
+    elif curr_epoch<30:
+        curr_lr = args.lr/2
+    elif curr_epoch<40:
+        curr_lr = args.lr/4
+    elif curr_epoch<50:
+        curr_lr = args.lr/8
+    else:
+        curr_lr = args.lr/16
+    for param_group in optimizer.param_groups:
+        param_group["lr"] = curr_lr
+    return curr_lr
+
 class Solver():
     def __init__(self, model, config, args, dataloader, optimizer_main, optimizer_det, optimizer_lang, stamp, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
@@ -352,7 +367,7 @@ class Solver():
         self.optimizer_main.zero_grad()
         if self.detection_module == "3detr" and self.args.sep_optim and self.detection:
             self.optimizer_det.zero_grad()
-        if self.language_module == "bert":
+        if self.language_module == "bert" and self.args.sep_optim:
             self.optimizer_lang.zero_grad()
         self._running_log["loss"].backward()
         self.optimizer_main.step()
@@ -414,6 +429,10 @@ class Solver():
         
         for data_dict in dataloader:
             # lr scheduler step for 3DETR:
+            '''
+            if self.detection_module == "3detr" and self.detection:        
+                curr_lr = reduce_learning_rate(self.args, self.optimizer_main, epoch_id)
+            '''
             if self.detection_module == "3detr" and not self.reference:
                 curr_lr_det = adjust_learning_rate(self.args, self.optimizer_det, self._global_iter_id / self._total_iter["train"])
                 curr_lr = self.optimizer_main.param_groups[0]["lr"]

@@ -41,7 +41,7 @@ class RefNet(nn.Module):
         # --------- Object Detection ------------
         if self.args.detection_module == "3detr":
             self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
-            '''
+            
             self.Object_Feature_MLP = nn.Sequential( # convert box_features to transfer it to match module # maybe change design
                     #nn.Dropout(p=0.1),
                     #nn.Linear(256, 256),
@@ -49,7 +49,7 @@ class RefNet(nn.Module):
                     nn.Dropout(p=0.1),
                     nn.Linear(256, 128),
                     )
-            '''
+            
                     
         # --------- PROPOSAL GENERATION ---------
         # Backbone point feature learning
@@ -119,8 +119,8 @@ class RefNet(nn.Module):
         # --------- 3DETR ----------------
         if self.args.detection_module == "3detr":
             data_dict = self.Object_Detection(data_dict)
-            data_dict['aggregated_vote_features'] = data_dict['aggregated_features']
-            #data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_features'])
+            #data_dict['aggregated_vote_features'] = data_dict['aggregated_features']
+            data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_features'])
         elif self.args.detection_module == "votenet":
             # --------- HOUGH VOTING ---------
             data_dict = self.backbone_net(data_dict)
