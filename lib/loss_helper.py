@@ -264,6 +264,8 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                 #gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
                 objectness_masks = data_dict['objectness_scores'].max(2)[1].float().cpu().numpy() # batch_size, num_proposals
             elif args.detection_module == "3detr":
+                objectness_masks = torch.as_tensor((data_dict['outputs']["objectness_prob"])>0.5,dtype=torch.float32)
+                objectness_masks = objectness_masks.cpu().numpy() 
                 #gt_bbox_batch = data_dict['gt_box_corners'][i][data_dict['ref_cluster_label_list']].detach().cpu().numpy()
                 gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
                 gt_bbox_batch.detach().cpu().numpy()

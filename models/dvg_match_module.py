@@ -50,8 +50,15 @@ class DVGMatchModule(nn.Module):
         """
         # --------- 3DVG + part ------------
         if self.use_dist_weight_matrix:
+
+            if self.args.detection_module == "3detr":
+                objects_center = data_dict['outputs']["center_normalized"]
+                #objects_center = torch.as_tensor((data_dict['outputs']["center_normalized"].unsqueeze(-1))>0.5,dtype=torch.float32)
+            elif self.args.detection_module == "votenet":
+                objects_center = data_dict['center']
+
             # Attention Weight
-            objects_center = data_dict['center']
+            #objects_center = data_dict['center']
             N_K = objects_center.shape[1]
             center_A = objects_center[:, None, :, :].repeat(1, N_K, 1, 1)
             center_B = objects_center[:, :, None, :].repeat(1, 1, N_K, 1)
@@ -72,12 +79,15 @@ class DVGMatchModule(nn.Module):
         # --------- End ------------
 
         # select detection module
-        if self.args.detection_module == 'detr':
-            features = data_dict['detr_features']
-            features = features.permute(0, 2, 1)
-            features = self.features_concat(features).permute(0, 2, 1)
+        if self.args.detection_module == '3detr':
+            #features = data_dict['detr_features']
+            #features = features.permute(0, 2, 1)
+            #features = self.features_concat(features).permute(0, 2, 1)
+            features = data_dict['aggregated_vote_features']
+            objectness_masks = torch.as_tensor((data_dict['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32)
         elif self.args.detection_module == 'votenet':
             features = data_dict['aggregated_vote_features'] # batch_size, num_proposal, 128
+            objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
             #features = features.permute(0, 2, 1)
             #features = self.features_concat(features).permute(0, 2, 1)
         else:
@@ -85,7 +95,7 @@ class DVGMatchModule(nn.Module):
         # end
         
         batch_size, num_proposal = features.shape[:2]
-        objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
+        #objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
         data_dict["random"] = random.random()
 
         # self attention part on the feature level

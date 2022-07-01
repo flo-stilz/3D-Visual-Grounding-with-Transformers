@@ -223,7 +223,7 @@ def get_solver(args, dataloader):
         match_params = list(model.match.parameters())
         optimizer_match = optim.AdamW(match_params, lr=args.lr_match, weight_decay=args.match_wd)
         l_params = sum(p.numel() for p in model.match.parameters())
-        print(str(l_params/1000000) + " mil. parameters in Language module")
+        print(str(l_params/1000000) + " mil. parameters in Match module")
         # rest
         rest_params = list(model.Object_Feature_MLP.parameters())
         total_params = sum(p.numel() for p in model.parameters())
@@ -546,6 +546,7 @@ if __name__ == "__main__":
     parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
     parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
     parser.add_argument("--bert_wd", type=float, help="weight decay for Language module", default=1e-6)
+    parser.add_argument("--num_bert_layers", type=int, help="bert layers", default=3)
     #match module
     parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")

@@ -35,7 +35,7 @@ class BERTModule(nn.Module):
         '''
 
         self.bert = BertModel.from_pretrained('bert-base-uncased')
-        #self.bert.encoder.layer = BertModel(BertConfig()).encoder.layer[:3]
+        self.bert.encoder.layer = BertModel(BertConfig()).encoder.layer[:self.args.num_bert_layers]
 
         '''
         # freeze some of the BERT weights:
@@ -97,7 +97,7 @@ class BERTModule(nn.Module):
 
             # --------- DVG fusion module ---------
             if self.args.match_module == 'dvg':
-                data_dict["attention_mask"] = lang_mask_list
+                data_dict["attention_mask"] = None
             # --------- End ---------
 
 

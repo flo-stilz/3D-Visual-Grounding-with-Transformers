@@ -370,17 +370,17 @@ class Solver():
         self.optimizer_main.zero_grad()
         if self.detection_module == "3detr" and self.args.sep_optim and self.detection:
             self.optimizer_det.zero_grad()
-        if self.language_module == "bert" and self.args.sep_optim:
+        if self.language_module == "bert" and self.args.sep_optim and self.optimizer_lang != None:
             self.optimizer_lang.zero_grad()
-        if self.match_module == "dvg" and self.args.sep_optim:
+        if self.match_module == "dvg" and self.args.sep_optim and self.optimizer_match != None:
             self.optimizer_match.zero_grad()
         self._running_log["loss"].backward()
         self.optimizer_main.step()
         if self.detection_module == "3detr" and self.args.sep_optim and self.detection:
             self.optimizer_det.step()
-        if self.language_module == "bert" and self.args.sep_optim:
+        if self.language_module == "bert" and self.args.sep_optim and self.optimizer_lang != None:
             self.optimizer_lang.step()
-        if self.match_module == "dvg" and self.args.sep_optim:
+        if self.match_module == "dvg" and self.args.sep_optim and self.optimizer_match != None:
             self.optimizer_match.step()
 
         
@@ -450,11 +450,13 @@ class Solver():
             else:
                 # Might have to fix that:
                 curr_lr = self.optimizer_main.param_groups[0]["lr"]
+                curr_lr_lang = ''
+                curr_lr_match = ''
                 if self.detection_module == "3detr" and self.detection and self.args.sep_optim:
                     curr_lr_det = self.optimizer_det.param_groups[0]["lr"]
-                if self.language_module == "bert" and self.args.sep_optim:
+                if self.language_module == "bert" and self.args.sep_optim and self.optimizer_lang != None:
                     curr_lr_lang = self.optimizer_lang.param_groups[0]["lr"]
-                if self.match_module == "dvg" and self.args.sep_optim:
+                if self.match_module == "dvg" and self.args.sep_optim and self.optimizer_match != None:
                     curr_lr_match = self.optimizer_match.param_groups[0]["lr"]
                 
             # move to cuda

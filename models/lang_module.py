@@ -83,10 +83,8 @@ class LangModule(nn.Module):
                 lang_fea = self.mhatt(lang_fea, lang_fea, lang_fea, attention_mask)
 
                 data_dict["lang_fea"] = lang_fea 
-
-            # --------- End ---------
-
-            data_dict["lang_feat"] = lang_feat
+            elif self.args.match_module == 'scanrefer':
+                data_dict["lang_feat"] = lang_feat
             
             lang_last = lang_last.permute(1, 0, 2).contiguous().flatten(start_dim=1)  # batch_size, hidden_size * num_dir
             data_dict["lang_emb"] = lang_last
