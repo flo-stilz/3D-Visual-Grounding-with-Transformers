@@ -139,8 +139,70 @@ def box3d_iou(corners1, corners2):
     vol2 = box3d_vol(corners2)
     iou = inter_vol / (vol1 + vol2 - inter_vol)
     return iou, iou_2d
+'''
+def box3d_iou(corners1, corners2):
+    """ Compute 3D bounding box IoU.
+    Input:
+        corners1: numpy array (8,3), assume up direction is Z
+        corners2: numpy array (8,3), assume up direction is Z
+    Output:
+        iou: 3D bounding box IoU
+    """
+    # # corner points are in counter clockwise order
+    # rect1 = [(corners1[i,0], corners1[i,2]) for i in range(3,-1,-1)]
+    # rect2 = [(corners2[i,0], corners2[i,2]) for i in range(3,-1,-1)] 
+    # area1 = poly_area(np.array(rect1)[:,0], np.array(rect1)[:,1])
+    # area2 = poly_area(np.array(rect2)[:,0], np.array(rect2)[:,1])
+    # inter, inter_area = convex_hull_intersection(rect1, rect2)
+    # iou_2d = inter_area/(area1+area2-inter_area)
+    # ymax = min(corners1[0,1], corners2[0,1])
+    # ymin = max(corners1[4,1], corners2[4,1])
+    # inter_vol = inter_area * max(0.0, ymax-ymin)
+    # vol1 = box3d_vol(corners1)
+    # vol2 = box3d_vol(corners2)
+    # iou = inter_vol / (vol1 + vol2 - inter_vol)
+    # return iou, iou_2d
+    rect1 = [(corners1[i, 0], corners1[i, 2]) for i in range(3, -1, -1)]
+    rect2 = [(corners2[i, 0], corners2[i, 2]) for i in range(3, -1, -1)]
+    area1 = poly_area(np.array(rect1)[:, 0], np.array(rect1)[:, 1])
+    area2 = poly_area(np.array(rect2)[:, 0], np.array(rect2)[:, 1])
+    inter, inter_area = convex_hull_intersection(rect1, rect2)
+    iou_2d = inter_area / (area1 + area2 - inter_area)
+
+    x_min_1, x_max_1, y_min_1, y_max_1, z_min_1, z_max_1 = get_box3d_min_max(corners1)
+    x_min_2, x_max_2, y_min_2, y_max_2, z_min_2, z_max_2 = get_box3d_min_max(corners2)
+    
+    xA = np.maximum(x_min_1, x_min_2)
+    yA = np.maximum(y_min_1, y_min_2)
+    zA = np.maximum(z_min_1, z_min_2)
+    xB = np.minimum(x_max_1, x_max_2)
+    yB = np.minimum(y_max_1, y_max_2)
+    zB = np.minimum(z_max_1, z_max_2)
+    inter_vol = np.maximum((xB - xA), 0) * np.maximum((yB - yA), 0) * np.maximum((zB - zA), 0)
+    box_vol_1 = (x_max_1 - x_min_1) * (y_max_1 - y_min_1) * (z_max_1 - z_min_1)
+    box_vol_2 = (x_max_2 - x_min_2) * (y_max_2 - y_min_2) * (z_max_2 - z_min_2)
+    iou = inter_vol / (box_vol_1 + box_vol_2 - inter_vol + 1e-8)
+
+    return iou, iou_2d
 
 
+def get_box3d_min_max(corner):
+    """ Compute min and max coordinates for 3D bounding box
+        Note: only for axis-aligned bounding boxes
+    Input:
+        corners: numpy array (8,3), assume up direction is Z (batch of N samples)
+    Output:
+        box_min_max: an array for min and max coordinates of 3D bounding box IoU
+    """
+
+    min_coord = corner.min(axis=0)
+    max_coord = corner.max(axis=0)
+    x_min, x_max = min_coord[0], max_coord[0]
+    y_min, y_max = min_coord[1], max_coord[1]
+    z_min, z_max = min_coord[2], max_coord[2]
+    
+    return x_min, x_max, y_min, y_max, z_min, z_max
+'''
 def get_iou(bb1, bb2):
     """
     Calculate the Intersection over Union (IoU) of two 2D bounding boxes.
@@ -241,13 +303,14 @@ def get_3d_box(box_size, heading_angle, center):
     """
     R = roty(heading_angle)
     l, w, h = box_size
-    #x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2]
-    #y_corners = [h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2]
-    #z_corners = [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2]
-    # changed version:
     x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2]
-    y_corners = [w / 2, w / 2, w / 2, w / 2, -w / 2, -w / 2, -w / 2, -w / 2]
-    z_corners = [h / 2, -h / 2, -h / 2, h / 2, h / 2, -h / 2, -h / 2, h / 2]
+    y_corners = [h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2]
+    z_corners = [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2]
+    # changed version:
+    
+    #x_corners = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2]
+    #y_corners = [w/2,-w/2,-w/2,w/2,w/2,-w/2,-w/2,w/2]
+    #z_corners = [h/2,h/2,h/2,h/2,-h/2,-h/2,-h/2,-h/2]
     
     corners_3d = np.dot(R, np.vstack([x_corners, y_corners, z_corners]))
     corners_3d[0, :] = corners_3d[0, :] + center[0]
@@ -274,7 +337,7 @@ def get_3d_box_batch_np(box_size, angle, center):
     w = np.expand_dims(box_size[..., 1], -1)
     h = np.expand_dims(box_size[..., 2], -1)
     corners_3d = np.zeros(tuple(list(input_shape) + [8, 3]))
-    '''
+    
     corners_3d[..., :, 0] = np.concatenate(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
@@ -290,12 +353,12 @@ def get_3d_box_batch_np(box_size, angle, center):
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
     corners_3d[..., :, 1] = np.concatenate(
-        (w / 2, w / 2, w / 2, w / 2, -w / 2, -w / 2, -w / 2, -w / 2), -1
+        (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
     )
     corners_3d[..., :, 2] = np.concatenate(
-        (h / 2, -h / 2, -h / 2, h / 2, h / 2, -h / 2, -h / 2, h / 2), -1
+        (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
     )
-    
+    '''
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape) + 1, len(input_shape)]
     corners_3d = np.matmul(corners_3d, np.transpose(R, tuple(tlist)))
@@ -352,7 +415,7 @@ def get_3d_box_batch_tensor(box_size, angle, center):
     corners_3d = torch.zeros(
         tuple(list(input_shape) + [8, 3]), device=box_size.device, dtype=torch.float32
     )
-    '''
+    
     corners_3d[..., :, 0] = torch.cat(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
@@ -368,12 +431,12 @@ def get_3d_box_batch_tensor(box_size, angle, center):
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
     corners_3d[..., :, 1] = torch.cat(
-        (w / 2, w / 2, w / 2, w / 2, -w / 2, -w / 2, -w / 2, -w / 2), -1
+        (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
     )
     corners_3d[..., :, 2] = torch.cat(
-        (h / 2, -h / 2, -h / 2, h / 2, h / 2, -h / 2, -h / 2, h / 2), -1
+        (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
     )
-    
+    '''
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape) + 1, len(input_shape)]
     corners_3d = torch.matmul(corners_3d, R.permute(tlist))
@@ -396,7 +459,7 @@ def get_3d_box_batch(box_size, angle, center):
     w = np.expand_dims(box_size[..., 1], -1)
     h = np.expand_dims(box_size[..., 2], -1)
     corners_3d = np.zeros(tuple(list(input_shape) + [8, 3]))
-    '''
+    
     corners_3d[..., :, 0] = np.concatenate(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
@@ -411,13 +474,13 @@ def get_3d_box_batch(box_size, angle, center):
     corners_3d[..., :, 0] = np.concatenate(
         (l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2), -1
     )
-    corners_3d[..., :, 1] = np.concatenate(
-        (w / 2, w / 2, w / 2, w / 2, -w / 2, -w / 2, -w / 2, -w / 2), -1
-    )
     corners_3d[..., :, 2] = np.concatenate(
-        (h / 2, -h / 2, -h / 2, h / 2, h / 2, -h / 2, -h / 2, h / 2), -1
+        (w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2), -1
     )
-    
+    corners_3d[..., :, 1] = np.concatenate(
+        (h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2), -1
+    )
+    '''
     tlist = [i for i in range(len(input_shape))]
     tlist += [len(input_shape) + 1, len(input_shape)]
     corners_3d = np.matmul(corners_3d, np.transpose(R, tuple(tlist)))

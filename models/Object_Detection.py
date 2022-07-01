@@ -498,14 +498,14 @@ class Object_Detection(nn.Module):
         data_dict['outputs'] = box_predictions['outputs']
         data_dict['aux_outputs'] = box_predictions['aux_outputs']
         
-        
+        '''
         # final decoder layer output
         box_final_features = box_features[-1].clone()
         #box_final_features = torch.zeros(256,2,256).cuda()
         features = box_final_features.transpose(0, 1)
         #data_dict["aggregated_vote_features"] = self.feature_processor(features)
         data_dict["aggregated_vote_features"] = features
-        
+        '''
         # look at box_predictions
         #return box_predictions
 

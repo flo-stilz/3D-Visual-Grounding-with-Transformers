@@ -12,6 +12,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from datetime import datetime
 from copy import deepcopy
+import warnings
 
 sys.path.append(os.path.join(os.getcwd())) # HACK add the root folder
 from data.scannet.model_util_scannet import ScannetDatasetConfig
@@ -342,6 +343,7 @@ if __name__ == "__main__":
     # setting
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    #warnings.filterwarnings("ignore")
 
     # reproducibility
     torch.manual_seed(args.seed)
