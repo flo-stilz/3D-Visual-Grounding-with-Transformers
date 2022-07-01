@@ -534,13 +534,13 @@ class Solver():
                     if self.detection_module == "3detr" and self.language_module == "bert" and self.match_module == "dvg" and self.detection and self.args.sep_optim:
                         self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr_lang, curr_lr_match)
                     elif self.detection_module == "3detr" and self.language_module == "bert" and self.detection and self.args.sep_optim:
-                        self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr_lang)
+                        self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr_lang, curr_lr_match)
                     elif self.detection_module=="3detr" and self.detection and self.args.sep_optim:
-                        self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr)
+                        self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr, curr_lr_match)
                     elif self.language_module=="bert" and self.args.sep_optim:
-                        self._train_report(epoch_id, curr_lr, curr_lr, curr_lr_lang)
+                        self._train_report(epoch_id, curr_lr, curr_lr, curr_lr_lang, curr_lr_match)
                     else:
-                        self._train_report(epoch_id, curr_lr, curr_lr, curr_lr)
+                        self._train_report(epoch_id, curr_lr, curr_lr, curr_lr, curr_lr)
                         
                 # evaluation
                 if self._global_iter_id % self.val_step == 0:
