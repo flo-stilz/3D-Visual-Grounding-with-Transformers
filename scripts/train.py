@@ -135,7 +135,7 @@ def get_model(args):
             for key in pre:
                 sd = pretrained_model.state_dict()
                 sd[key[17:]] = pre[key]
-                pretrained_model.load_state_dict(sd)
+                pretrained_model.load_state_dict(sd, strict=False)
         
             # mount
             '''

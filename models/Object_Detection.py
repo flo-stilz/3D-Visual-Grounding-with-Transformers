@@ -349,7 +349,9 @@ class Object_Detection(nn.Module):
                     semcls_prob,
                     objectness_prob,
                 ) = self.box_processor.compute_objectness_and_cls_prob(cls_logits[l])
-
+                
+            box_features = box_features.reshape(num_layers, batch, channel, num_queries)
+            
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
                 "center_normalized": center_normalized.contiguous(),
@@ -364,6 +366,7 @@ class Object_Detection(nn.Module):
                 "sem_cls_prob": semcls_prob,
                 "box_corners": box_corners,
                 "center_offset": center_offset[l],
+                "box_features": box_features[l],
             }
             
             outputs.append(box_prediction)

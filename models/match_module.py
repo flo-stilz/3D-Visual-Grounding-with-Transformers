@@ -39,6 +39,12 @@ class MatchModule(nn.Module):
         features = data_dict['aggregated_vote_features'] # batch_size, num_proposal, 128
         if self.args.detection_module == "3detr":
             objectness_masks = torch.as_tensor((data_dict['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32)
+            int_objectness_masks = torch.zeros((len(data_dict['aux_outputs']),data_dict['aux_outputs'][0]['objectness_prob'].shape[0], data_dict['aux_outputs'][0]['objectness_prob'].shape[1], 1)).cuda()
+            int_features = torch.zeros((len(data_dict['aux_outputs']),data_dict['aux_outputs'][0]['box_features'].shape[0], data_dict['aux_outputs'][0]['box_features'].shape[1], data_dict['aux_outputs'][0]['box_features'].shape[2])).cuda()
+
+            for l in range(len(data_dict['aux_outputs'])):
+                int_objectness_masks[l] = torch.as_tensor((data_dict['aux_outputs'][l]['objectness_prob'].unsqueeze(-1))>0.5,dtype=torch.float32)
+                int_features[l] = data_dict['aux_outputs'][l]['box_features']
         elif self.args.detection_module == "votenet":
             objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2) # batch_size, num_proposals, 1
 
@@ -60,6 +66,15 @@ class MatchModule(nn.Module):
             #print(f'objectness_masks shape before unsquezze: {objectness_masks.shape}')
             objectness_masks = objectness_masks.unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
             #print(f'objectness_masks shape after unsquezze: {objectness_masks.shape}')
+            if self.args.detection_module == "3detr":
+                int_features_2 = torch.zeros((int_features.shape[0], int_features.shape[1], len_nun_max, int_features.shape[2], int_features.shape[3])).cuda()
+                int_features_3 = torch.zeros((int_features.shape[0], int_features.shape[1]*len_nun_max, int_features.shape[2], int_features.shape[3])).cuda()
+                int_objectness_masks_2 = torch.zeros((int_objectness_masks.shape[0], int_objectness_masks.shape[1]*len_nun_max, int_objectness_masks.shape[2], int_objectness_masks.shape[3])).cuda()
+                for l in range(int_features.shape[0]):
+                    int_features_2[l] = int_features[l].unsqueeze(1).repeat(1, len_nun_max, 1, 1)
+                    v1, v2, v3, v4 = int_features_2[l].shape[:4]
+                    int_features_3[l] = int_features_2[l].reshape(batchsize * len_nun_max, v3, v4)
+                    int_objectness_masks_2[l] = int_objectness_masks[l].unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
         else:
             pass
 
@@ -80,5 +95,20 @@ class MatchModule(nn.Module):
         confidences = self.match(features).squeeze(1) # batch_size, num_proposals
                 
         data_dict["cluster_ref"] = confidences
+        
+        if self.args.detection_module == "3detr":
+            int_features_cat = torch.zeros((int_features_3.shape[0], int_features_3.shape[1], int_features_3.shape[2], int_features_3.shape[3]+lang_feat.shape[2])).cuda()
+            for l in range(len(int_features_3)):
+                
+                int_features_cat[l] = torch.cat([int_features_3[l], lang_feat], dim=-1)
+                int_features_cat_layer = int_features_cat[l].permute(0, 2, 1).contiguous().cuda()
+                # fuse features
+                int_features_cat_layer = self.fuse(int_features_cat_layer)
+                # mask out invalid proposals
+                int_objectness_masks_layer = int_objectness_masks_2[l].permute(0, 2, 1).contiguous()
+                int_features_cat_layer = int_features_cat_layer * int_objectness_masks_layer
+                
+                confidences = self.match(int_features_cat_layer.squeeze(1))
+                data_dict['aux_outputs'][l]['cluster_ref'] = confidences
 
         return data_dict
