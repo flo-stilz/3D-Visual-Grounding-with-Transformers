@@ -293,6 +293,7 @@ class APCalculator(object):
             )
         self.ap_config_dict = ap_config_dict
         self.class2type_map = class2type_map
+        print("reset")
         self.reset()
 
     def make_gt_list(self, gt_box_corners, gt_box_sem_cls_labels, gt_box_present):
@@ -308,19 +309,52 @@ class APCalculator(object):
             )
         return batch_gt_map_cls
 
-    def step_meter(self, outputs, targets):
-        if "outputs" in outputs:
-            outputs = outputs["outputs"]
-        self.step(
-            predicted_box_corners=outputs["box_corners"],
-            sem_cls_probs=outputs["sem_cls_prob"],
-            objectness_probs=outputs["objectness_prob"],
-            point_cloud=targets["point_clouds"],
-            gt_box_corners=targets["gt_box_corners"],
-            gt_box_sem_cls_labels=targets["gt_box_sem_cls_label"],
-            gt_box_present=targets["gt_box_present"],
-        )
-
+    def step_meter(self, outputs, targets, detection_module, dataset_config):
+        if detection_module == "3detr":
+            if "outputs" in outputs:
+                outputs = outputs["outputs"]
+            self.step(
+                predicted_box_corners=outputs["box_corners"],
+                sem_cls_probs=outputs["sem_cls_prob"],
+                objectness_probs=outputs["objectness_prob"],
+                point_cloud=targets["point_clouds"],
+                gt_box_corners=targets["gt_box_corners"],
+                gt_box_sem_cls_labels=targets["gt_box_sem_cls_label"],
+                gt_box_present=targets["gt_box_present"],
+            )
+        elif detection_module == "votenet":
+            data_dict = targets
+            pred_center = data_dict['center']
+            pred_heading_class = torch.argmax(data_dict['heading_scores'], -1) # B,num_proposal
+            pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
+            pred_heading_class = pred_heading_class # B,num_proposal
+            pred_heading_residual = pred_heading_residual.squeeze(2) # B,num_proposal
+            pred_size_class = torch.argmax(data_dict['size_scores'], -1) # B,num_proposal
+            pred_size_residual = torch.gather(data_dict['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
+            pred_size_class = pred_size_class
+            pred_size_residual = pred_size_residual.squeeze(2) # B,num_proposal,3
+            pred_obj_scores = data_dict['objectness_scores']
+            pred_box_corners = []
+            for i in range(pred_center.shape[0]):
+                pred_obb_batch = dataset_config.param2obb_batch(pred_center[i, :, 0:3].detach().cpu().numpy(), pred_heading_class[i].detach().cpu().numpy(), pred_heading_residual[i].detach().cpu().numpy(),
+                                                        pred_size_class[i].detach().cpu().numpy(), pred_size_residual[i].detach().cpu().numpy())
+                pred_bbox_batch = dataset_config.box_parametrization_to_corners_np(pred_obb_batch[:, 0:3], pred_obb_batch[:, 3:6], pred_obb_batch[:, 6])
+                pred_box_corners.append(pred_bbox_batch)
+            pred_box_corners = np.array(pred_box_corners)
+            pred_box_corners = torch.as_tensor(pred_box_corners)
+            pred_box_corners = pred_box_corners.cuda()
+            cls_prob = torch.nn.functional.softmax(data_dict['sem_cls_scores'], dim=-1)
+            objectness_prob = torch.nn.functional.softmax(pred_obj_scores, dim=-1)[:,:,1]
+            
+            self.step(
+                    predicted_box_corners=pred_box_corners,
+                    sem_cls_probs=cls_prob,
+                    objectness_probs=objectness_prob,
+                    point_cloud=targets["point_clouds"],
+                    gt_box_corners=targets['gt_box_corners'],
+                    gt_box_sem_cls_labels=targets["gt_box_sem_cls_label"],
+                    gt_box_present=targets["gt_box_present"],)
+        
     def step(
         self,
         predicted_box_corners,
@@ -365,6 +399,7 @@ class APCalculator(object):
         for i in range(bsize):
             self.gt_map_cls[self.scan_cnt] = batch_gt_map_cls[i]
             self.pred_map_cls[self.scan_cnt] = batch_pred_map_cls[i]
+            print(len(self.pred_map_cls))
             self.scan_cnt += 1
 
     def compute_metrics(self):

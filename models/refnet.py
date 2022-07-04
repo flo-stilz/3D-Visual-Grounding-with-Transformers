@@ -32,7 +32,7 @@ class RefNet(nn.Module):
         self.use_lang_classifier = use_lang_classifier
         self.use_bidir = use_bidir      
         self.no_reference = no_reference
-
+        '''
         # --------- Object Detection ------------
         self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
         # --------- PROPOSAL GENERATION ---------
@@ -45,7 +45,7 @@ class RefNet(nn.Module):
 
         # Vote aggregation and object proposal
         self.proposal = ProposalModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling)
-        '''
+        
         '''
         if not no_reference:
             # --------- LANGUAGE ENCODING ---------
@@ -83,8 +83,8 @@ class RefNet(nn.Module):
         #######################################
 
         # --------- 3DETR ----------------
-        data_dict = self.Object_Detection(data_dict)
-        '''
+        #data_dict = self.Object_Detection(data_dict)
+        
         # --------- HOUGH VOTING ---------
         data_dict = self.backbone_net(data_dict)
                 
@@ -103,7 +103,7 @@ class RefNet(nn.Module):
 
         # --------- PROPOSAL GENERATION ---------
         data_dict = self.proposal(xyz, features, data_dict)
-        '''
+        
         '''
         if not self.no_reference:
             #######################################

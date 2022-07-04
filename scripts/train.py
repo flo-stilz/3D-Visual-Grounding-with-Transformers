@@ -47,7 +47,7 @@ def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
 
     return dataset, dataloader
 
-def get_model(args):
+def get_model(args, dataloader):
     # initiate model
     input_channels = int(args.use_multiview) * 128 + int(args.use_normal) * 3 + int(args.use_color) * 3 + int(not args.no_height)
 
@@ -79,48 +79,79 @@ def get_model(args):
         )
 
         #pretrained_model = Object_Detection(input_channels)
-        '''
-        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
-        pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
-
-        # mount
-        model.backbone_net = pretrained_model.backbone_net
-        model.vgen = pretrained_model.vgen
-        model.proposal = pretrained_model.proposal
-        '''
-        # 3DETR pretrained:
-        #print(pretrained_model)
-        
-        for param in pretrained_model.parameters():
-            for weights in param.data:
-                print(weights)
+        if args.detection_module == "votenet":
+            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
+            pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
+    
+            # mount
+            model.backbone_net = pretrained_model.backbone_net
+            model.vgen = pretrained_model.vgen
+            model.proposal = pretrained_model.proposal
+            
+            model = model.cuda()
+            
+            stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            if args.tag: stamp += "_"+args.tag.upper()
+            root = os.path.join(CONF.PATH.OUTPUT, stamp)
+            os.makedirs(root, exist_ok=True)
+            optimizer = get_optimizer(args, model)
+            solver = Solver(
+            model=model, 
+            config=DC, 
+            dataloader=dataloader, 
+            optimizer=optimizer, 
+            stamp=stamp,
+            args=args,
+            val_step=args.val_step,
+            detection=not args.no_detection,
+            reference=not args.no_reference, 
+            use_lang_classifier=not args.no_lang_cls,
+            #lr_decay_step=LR_DECAY_STEP,
+            #lr_decay_rate=LR_DECAY_RATE,
+            #bn_decay_step=BN_DECAY_STEP,
+            #bn_decay_rate=BN_DECAY_RATE
+        )
+            
+            solver._feed(solver.dataloader["val"], "val", 0)
+            solver._dump_log("val")
+            solver._set_phase("train")
+            solver._epoch_report(0)
+            
+        elif args.detection_module == "3detr":
+            # 3DETR pretrained:
+            #print(pretrained_model)
+            
+            for param in pretrained_model.parameters():
+                for weights in param.data:
+                    print(weights)
+                    break
                 break
-            break
-        
-        
-        #pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
-        pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
-        pre = torch.load(pretrained_path)
-
-        pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
-        
-        for key in pre:
-            sd = pretrained_model.state_dict()
-            sd[key] = pre[key]
-            pretrained_model.load_state_dict(sd)
-        
-        # mount
-        
-        for param in pretrained_model.parameters():
-            for weights in param.data:
-                print(weights)
+            
+            
+            #pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "scannet_masked_ep1080.pth")
+            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
+            pre = torch.load(pretrained_path)
+    
+            pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
+            
+            for key in pre:
+                sd = pretrained_model.state_dict()
+                sd[key[17:]] = pre[key]
+                pretrained_model.load_state_dict(sd, strict=False)
+            
+            # mount
+            
+            for param in pretrained_model.parameters():
+                for weights in param.data:
+                    print(weights)
+                    break
                 break
-            break
-        
-        model.Object_Detection = pretrained_model
+            
+            model = pretrained_model
         #print(model)
         
         if args.no_detection:
+            '''
             # freeze pointnet++ backbone
             for param in model.backbone_net.parameters():
                 param.requires_grad = False
@@ -131,6 +162,10 @@ def get_model(args):
             
             # freeze detector
             for param in model.proposal.parameters():
+                param.requires_grad = False
+            '''
+            # freeze 3DETR
+            for param in model.Object_Detection.parameters():
                 param.requires_grad = False
     
     # to CUDA
@@ -168,7 +203,7 @@ def get_optimizer(args, model):
     return optimizer
 
 def get_solver(args, dataloader):
-    model = get_model(args)
+    model = get_model(args, dataloader)
     #optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
     optimizer = get_optimizer(args, model)
 
@@ -239,13 +274,50 @@ def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes):
             data = deepcopy(SCANREFER_TRAIN[0])
             data["scene_id"] = scene_id
             new_scanrefer_train.append(data)
+        
+        scenes = []
+        actual_scanrefer_train = []
+        for i in new_scanrefer_train:
+            flag = True
+            for j in scenes:
+                if i['scene_id'][:9] in j:
+                    flag = False
+            if flag:
+                scenes.append(i['scene_id'][:9])
+                actual_scanrefer_train.append(i)
+        new_scanrefer_train = actual_scanrefer_train
+        print(len(scenes))
+        test = set(scenes)
+        print(len(test))
+        print(len(list(test))==len(scenes))
+        print(len(new_scanrefer_train))
 
         val_scene_list = get_scannet_scene_list("val")
+        
         new_scanrefer_val = []
         for scene_id in val_scene_list:
             data = deepcopy(SCANREFER_VAL[0])
             data["scene_id"] = scene_id
             new_scanrefer_val.append(data)
+        
+        # ensuring no duplicate scenes:
+        scenes = []
+        actual_scanrefer_val = []
+        for i in new_scanrefer_val:
+            flag = True
+            for j in scenes:
+                if i['scene_id'][:9] in j:
+                    flag = False
+            if flag:
+                scenes.append(i['scene_id'][:9])
+                actual_scanrefer_val.append(i)
+        new_scanrefer_val = actual_scanrefer_val
+        print(len(scenes))
+        test = set(scenes)
+        print(len(test))
+        print(len(list(test))==len(scenes))
+        print(len(new_scanrefer_val))
+        
     else:
         # get initial scene list
         train_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_train])))
@@ -301,6 +373,7 @@ def train(args):
     print("Start training...\n")
     save_info(args, root, num_params, train_dataset, val_dataset)
     solver(args.epoch, args.verbose)
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -338,6 +411,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--clip_gradient", default=0.1, type=float, help="Max L2 norm of the gradient"
     )
+    parser.add_argument("--detection_module", type=str, help="Detection module either votenet or 3detr", default="3detr")
+    
     args = parser.parse_args()
 
     # setting

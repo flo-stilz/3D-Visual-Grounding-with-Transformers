@@ -145,6 +145,7 @@ def adjust_learning_rate(args, optimizer, curr_epoch):
         param_group["lr"] = curr_lr
     return curr_lr
 
+
 class Solver():
     def __init__(self, model, config, dataloader, optimizer, stamp, args, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
@@ -160,6 +161,7 @@ class Solver():
         self.stamp = stamp
         self.args = args
         self.val_step = val_step
+        self.detection_module = args.detection_module
 
         self.detection = detection
         self.reference = reference
@@ -194,6 +196,7 @@ class Solver():
             "train": {},
             "val": {}
         }
+        
         
         # tensorboard
         os.makedirs(os.path.join(CONF.PATH.OUTPUT, stamp, "tensorboard/train"), exist_ok=True)
@@ -335,7 +338,7 @@ class Solver():
         if self.args.clip_gradient > 0:
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.clip_gradient)
         self.optimizer.step()
-
+    
     def _compute_loss(self, data_dict):
         _, data_dict = get_loss(
             data_dict=data_dict, 
@@ -354,7 +357,7 @@ class Solver():
         self._running_log["obj_loss"] = data_dict["obj_loss"]
         self._running_log["loss"] = data_dict["loss"]
 
-    def _eval(self, data_dict, phase):
+    def _eval(self, data_dict, phase, ap_calculator):
         '''
         data_dict = get_eval(
             data_dict=data_dict,
@@ -365,13 +368,18 @@ class Solver():
         '''
         if self.train_iter%self.eval_step==0 or phase=="val":
             print("eval on batch")
+            '''
             ap_calculator = APCalculator(
             dataset_config=dataset_config,
             ap_iou_thresh=[0.25, 0.5],
             class2type_map=dataset_config.class2type,
             exact_eval=True,
             )
-            ap_calculator.step_meter(data_dict['outputs'], data_dict)
+            '''
+            if self.detection_module == "3detr":
+                ap_calculator.step_meter(data_dict['outputs'], data_dict, self.detection_module, dataset_config)
+            elif self.detection_module == "votenet":
+                ap_calculator.step_meter(data_dict, data_dict, self.detection_module, dataset_config)
             metrics = ap_calculator.compute_metrics()
             #metric_str = ap_calculator.metrics_to_str(metrics, per_class=False)
             metrics_dict = ap_calculator.metrics_to_dict(metrics)
@@ -390,6 +398,13 @@ class Solver():
         #self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
 
     def _feed(self, dataloader, phase, epoch_id):
+        # ap_calculation:
+        ap_calculator = APCalculator(
+            dataset_config=dataset_config,
+            ap_iou_thresh=[0.25, 0.5],
+            class2type_map=dataset_config.class2type,
+            exact_eval=True,
+            )
         # switch mode
         self._set_phase(phase)
 
@@ -401,7 +416,8 @@ class Solver():
         self.train_iter = 0
         for data_dict in dataloader:
             # lr scheduler step:
-            curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / self._total_iter["train"])
+            if self.detection_module == "3detr":
+                curr_lr = adjust_learning_rate(self.args, self.optimizer, self._global_iter_id / self._total_iter["train"])
             # move to cuda
             for key in data_dict:
                 data_dict[key] = data_dict[key].cuda()
@@ -433,40 +449,47 @@ class Solver():
                 # forward
                 start = time.time()
                 data_dict = self._forward(data_dict)
-                self._compute_loss(data_dict)
+                if self.detection_module == "3detr":
+                    self._compute_loss(data_dict)
                 self.log[phase]["forward"].append(time.time() - start)
-
+                
                 # backward
-                if phase == "train":
+                if phase == "train" and self.detection_module == "3detr":
                     start = time.time()
                     self._backward()
                     self.log[phase]["backward"].append(time.time() - start)
-            
+                
             # eval
             start = time.time()
-            self._eval(data_dict, phase)
+            self._eval(data_dict, phase, ap_calculator)
             self.log[phase]["eval"].append(time.time() - start)
 
             # record log
-            self.log[phase]["loss"].append(self._running_log["loss"].item())
-            #self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
-            #self.log[phase]["lang_loss"].append(self._running_log["lang_loss"].item())
-            #self.log[phase]["objectness_loss"].append(self._running_log["objectness_loss"].item())
-            #self.log[phase]["vote_loss"].append(self._running_log["vote_loss"].item())
-            #self.log[phase]["box_loss"].append(self._running_log["box_loss"].item())
-            self.log[phase]["obj_loss"].append(self._running_log["obj_loss"].item())
-
-            #self.log[phase]["lang_acc"].append(self._running_log["lang_acc"])
-            #self.log[phase]["ref_acc"].append(self._running_log["ref_acc"])
-            #self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
-            #self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
-            #self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
+            if self.detection_module == "3detr":
+                self.log[phase]["loss"].append(self._running_log["loss"].item())
+                #self.log[phase]["ref_loss"].append(self._running_log["ref_loss"].item())
+                #self.log[phase]["lang_loss"].append(self._running_log["lang_loss"].item())
+                #self.log[phase]["objectness_loss"].append(self._running_log["objectness_loss"].item())
+                #self.log[phase]["vote_loss"].append(self._running_log["vote_loss"].item())
+                #self.log[phase]["box_loss"].append(self._running_log["box_loss"].item())
+                self.log[phase]["obj_loss"].append(self._running_log["obj_loss"].item())
+    
+                #self.log[phase]["lang_acc"].append(self._running_log["lang_acc"])
+                #self.log[phase]["ref_acc"].append(self._running_log["ref_acc"])
+                #self.log[phase]["obj_acc"].append(self._running_log["obj_acc"])
+                #self.log[phase]["pos_ratio"].append(self._running_log["pos_ratio"])
+                #self.log[phase]["neg_ratio"].append(self._running_log["neg_ratio"])
 
             if self.train_iter%self.eval_step==0 or phase=="val":
                 print("logging")
                 print(self._running_log["iou_rate_0.25"])
-                self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
-                self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])                
+                if self.log[phase]["iou_rate_0.25"]==[]:
+                    self.log[phase]["iou_rate_0.25"].append(self._running_log["iou_rate_0.25"])
+                    self.log[phase]["iou_rate_0.5"].append(self._running_log["iou_rate_0.5"])       
+                else:
+                    self.log[phase]["iou_rate_0.25"][0] = self._running_log["iou_rate_0.25"]
+                    self.log[phase]["iou_rate_0.5"][0] = self._running_log["iou_rate_0.5"]      
+                
             self.train_iter+=1
             # report
             if phase == "train":
@@ -495,6 +518,9 @@ class Solver():
 
 
         # check best
+        print(self.log[phase]["iou_rate_0.5"])
+        print(np.mean(self.log[phase]["iou_rate_0.5"]))
+        print(self.log[phase]["iou_rate_0.25"])
         if phase == "val":
             cur_criterion = "iou_rate_0.5"
             cur_best = np.mean(self.log[phase][cur_criterion])

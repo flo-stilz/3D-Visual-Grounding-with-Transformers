@@ -306,6 +306,7 @@ def get_3d_box(box_size, heading_angle, center):
     x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2]
     y_corners = [h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2]
     z_corners = [w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2]
+
     # changed version:
     
     #x_corners = [l/2,l/2,-l/2,-l/2,l/2,l/2,-l/2,-l/2]
