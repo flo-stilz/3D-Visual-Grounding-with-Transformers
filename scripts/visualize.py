@@ -41,7 +41,8 @@ DC = ScannetDatasetConfig()
 def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
     dataset = ScannetReferenceDataset(
         scanrefer=scanrefer, 
-        scanrefer_all_scene=all_scene_list, 
+        scanrefer_all_scene=all_scene_list,
+        scanrefer_new = None,
         split=split, 
         num_points=args.num_points, 
         use_color=args.use_color, 
@@ -59,6 +60,7 @@ def get_model(args):
     input_channels = int(args.use_multiview) * 128 + int(args.use_normal) * 3 + int(args.use_color) * 3 + int(not args.no_height)
     model = RefNet(
         num_class=DC.num_class,
+        args = args,
         num_heading_bin=DC.num_heading_bin,
         num_size_cluster=DC.num_size_cluster,
         mean_size_arr=DC.mean_size_arr,
@@ -236,7 +238,10 @@ def write_bbox(bbox, mode, output_file):
     verts = []
     indices = []
     colors = []
-    corners = get_bbox_corners(bbox)
+    if args.detection_module == "votenet":
+        corners = get_bbox_corners(bbox)
+    elif args.detection_module == "3detr":
+        corners = bbox
 
     box_min = np.min(corners, axis=0)
     box_max = np.max(corners, axis=0)
@@ -338,18 +343,24 @@ def dump_results(args, scanrefer, data, config):
     
     # from network outputs
     # detection
-    pred_objectness = torch.argmax(data['objectness_scores'], 2).float().detach().cpu().numpy()
-    pred_center = data['center'].detach().cpu().numpy() # (B,K,3)
-    pred_heading_class = torch.argmax(data['heading_scores'], -1) # B,num_proposal
-    pred_heading_residual = torch.gather(data['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
-    pred_heading_class = pred_heading_class.detach().cpu().numpy() # B,num_proposal
-    pred_heading_residual = pred_heading_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal
-    pred_size_class = torch.argmax(data['size_scores'], -1) # B,num_proposal
-    pred_size_residual = torch.gather(data['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
-    pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal,3
+    if args.detection_module == "votenet":
+        pred_objectness = torch.argmax(data['objectness_scores'], 2).float().detach().cpu().numpy()
+        pred_center = data['center'].detach().cpu().numpy() # (B,K,3)
+        pred_heading_class = torch.argmax(data['heading_scores'], -1) # B,num_proposal
+        pred_heading_residual = torch.gather(data['heading_residuals'], 2, pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
+        pred_heading_class = pred_heading_class.detach().cpu().numpy() # B,num_proposal
+        pred_heading_residual = pred_heading_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal
+        pred_size_class = torch.argmax(data['size_scores'], -1) # B,num_proposal
+        pred_size_residual = torch.gather(data['size_residuals'], 2, pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
+        pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal,3
+    if args.detection_module == "3detr":
+        pred_objectness = torch.as_tensor((data['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32).squeeze(-1).detach().cpu().numpy()
     # reference
     pred_ref_scores = data["cluster_ref"].detach().cpu().numpy()
-    pred_ref_scores_softmax = F.softmax(data["cluster_ref"] * torch.argmax(data['objectness_scores'], 2).float() * data['pred_mask'], dim=1).detach().cpu().numpy()
+    if args.detection_module == "votenet":
+        pred_ref_scores_softmax = F.softmax(data["cluster_ref"] * torch.argmax(data['objectness_scores'], 2).float() * data['pred_mask'], dim=1).detach().cpu().numpy()
+    elif args.detection_module == "3detr":
+        pred_ref_scores_softmax = F.softmax(data["cluster_ref"] * torch.as_tensor((data['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32).squeeze(-1).float() * data['pred_mask'], dim=1).detach().cpu().numpy()
     # post-processing
     nms_masks = data['pred_mask'].detach().cpu().numpy() # B,num_proposal
     
@@ -361,6 +372,9 @@ def dump_results(args, scanrefer, data, config):
     gt_size_residual = data['size_residual_label'].cpu().numpy() # B,K2,3
     # reference
     gt_ref_labels = data["ref_box_label"].detach().cpu().numpy()
+    #gt_ref = torch.argmax(data["ref_box_label"], 1)
+    #pred_masks = (pred_objectness == 1)
+    #pred_ref = np.argmax(data['cluster_ref'].detach().cpu().numpy() * pred_masks, 1)
 
     for i in range(batch_size):
         # basic info
@@ -384,30 +398,49 @@ def dump_results(args, scanrefer, data, config):
          # filter out the valid ground truth reference box
         assert gt_ref_labels[i].shape[0] == gt_center[i].shape[0]
         gt_ref_idx = np.argmax(gt_ref_labels[i], 0)
+        #gt_ref_idx = gt_ref[i]
 
         # visualize the gt reference box
         # NOTE: for each object there should be only one gt reference box
         object_dump_dir = os.path.join(dump_dir, scene_id, "gt_{}_{}.ply".format(object_id, object_name))
         gt_obb = config.param2obb(gt_center[i, gt_ref_idx, 0:3], gt_heading_class[i, gt_ref_idx], gt_heading_residual[i, gt_ref_idx],
                 gt_size_class[i, gt_ref_idx], gt_size_residual[i, gt_ref_idx])
-        gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+        if args.detection_module == "votenet":
+            gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+    
+            if not os.path.exists(object_dump_dir):
+                write_bbox(gt_obb, 0, os.path.join(scene_dump_dir, 'gt_{}_{}.ply'.format(object_id, object_name)))
+        elif args.detection_module == "3detr":
+            #gt_bbox = config.box_parametrization_to_corners(torch.as_tensor(gt_obb[0:3]), torch.as_tensor(gt_obb[3:6]), torch.as_tensor(gt_obb[6]))
+            gt_bbox = data['gt_box_corners'][i][gt_ref_idx]
+            gt_bbox = gt_bbox.detach().cpu().numpy()
+            if not os.path.exists(object_dump_dir):
+                write_bbox(gt_bbox, 0, os.path.join(scene_dump_dir, 'gt_{}_{}.ply'.format(object_id, object_name)))
 
-        if not os.path.exists(object_dump_dir):
-            write_bbox(gt_obb, 0, os.path.join(scene_dump_dir, 'gt_{}_{}.ply'.format(object_id, object_name)))
-        
         # find the valid reference prediction
         pred_masks = nms_masks[i] * pred_objectness[i] == 1
-        assert pred_ref_scores[i].shape[0] == pred_center[i].shape[0]
+        if args.detection_module == "votenet":
+            assert pred_ref_scores[i].shape[0] == pred_center[i].shape[0]
         pred_ref_idx = np.argmax(pred_ref_scores[i] * pred_masks, 0)
-        assigned_gt = torch.gather(data["ref_box_label"], 1, data["object_assignment"]).detach().cpu().numpy()
+        #pred_ref_idx = pred_ref[i]
+        # not really needed: -> can be ignored
+        if args.detection_module == "votenet":
+            assigned_gt = torch.gather(data["ref_box_label"], 1, data["object_assignment"]).detach().cpu().numpy()
 
         # visualize the predicted reference box
-        pred_obb = config.param2obb(pred_center[i, pred_ref_idx, 0:3], pred_heading_class[i, pred_ref_idx], pred_heading_residual[i, pred_ref_idx],
-                pred_size_class[i, pred_ref_idx], pred_size_residual[i, pred_ref_idx])
-        pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+        if args.detection_module == "votenet":
+            pred_obb = config.param2obb(pred_center[i, pred_ref_idx, 0:3], pred_heading_class[i, pred_ref_idx], pred_heading_residual[i, pred_ref_idx],
+                    pred_size_class[i, pred_ref_idx], pred_size_residual[i, pred_ref_idx])
+            pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+        elif args.detection_module == "3detr":
+            pred_bbox = data['outputs']['box_corners'][i][pred_ref_idx]
+            pred_bbox = pred_bbox.detach().cpu().numpy()
         iou = box3d_iou(gt_bbox, pred_bbox)
-
-        write_bbox(pred_obb, 1, os.path.join(scene_dump_dir, 'pred_{}_{}_{}_{:.5f}_{:.5f}.ply'.format(object_id, object_name, ann_id, pred_ref_scores_softmax[i, pred_ref_idx], iou)))
+        print(iou)
+        if args.detection_module == "3detr":
+            write_bbox(pred_bbox, 1, os.path.join(scene_dump_dir, 'pred_{}_{}_{}_{:.5f}_{:.5f}.ply'.format(object_id, object_name, ann_id, pred_ref_scores_softmax[i, pred_ref_idx], iou)))
+        elif args.detection_module == "votenet":
+            write_bbox(pred_obb, 1, os.path.join(scene_dump_dir, 'pred_{}_{}_{}_{:.5f}_{:.5f}.ply'.format(object_id, object_name, ann_id, pred_ref_scores_softmax[i, pred_ref_idx], iou)))
 
 def visualize(args):
     # init training dataset
@@ -443,16 +476,27 @@ def visualize(args):
         # _, data = get_loss(data, DC, True, True, POST_DICT)
         _, data = get_loss(
             data_dict=data, 
-            config=DC, 
+            config=DC,
+            args=args,
             detection=True,
             reference=True
         )
-        data = get_eval(
-            data_dict=data, 
-            config=DC,
-            reference=True, 
-            post_processing=POST_DICT
-        )
+        if args.detection_module == "votenet":
+            data = get_eval(
+                data_dict=data, 
+                config=DC,
+                args=args,
+                reference=True, 
+                post_processing=POST_DICT
+            )
+        elif args.detection_module == "3detr":
+            data = get_eval(
+                data_dict=data, 
+                config=DC,
+                args=args,
+                reference=True, 
+                post_processing=None
+            )
         
         # visualize
         dump_results(args, scanrefer, data, DC)
@@ -475,6 +519,36 @@ if __name__ == "__main__":
     parser.add_argument('--use_color', action='store_true', help='Use RGB color in input.')
     parser.add_argument('--use_normal', action='store_true', help='Use RGB color in input.')
     parser.add_argument('--use_multiview', action='store_true', help='Use multiview images.')
+    #chunking
+    parser.add_argument("--use_chunking", action="store_true", help="Chunking")
+    parser.add_argument("--lang_num_max", type=int, help="lang num max", default=8)
+    #language module
+    parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
+    parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)
+    parser.add_argument("--bert_wd", type=float, help="weight decay for Language module", default=1e-6)
+    parser.add_argument("--num_bert_layers", type=int, help="bert layers", default=3)
+    #match module
+    parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
+    parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
+    parser.add_argument("--dvg_plus", action="store_true", help="Regularization for the training")
+    parser.add_argument("--m_enc_layers", type=int, default=1, help="Amount of encoder layers for matching module when using vanilla transformer")
+    parser.add_argument("--lr_match", default=5e-5, type=float)
+    parser.add_argument("--match_wd", type=float, help="weight decay for Language module", default=1e-6)
+    # detection module
+    parser.add_argument("--detection_module", type=str, default='3detr', help="Detection modules: votenet, 3detr")
+    parser.add_argument("--int_layers", action="store_true", help="Use the intermediate layers of 3DETR for the ref loss")
+    # 3DETR optimizer
+    parser.add_argument("--detr_lr", default=5e-4, type=float)
+    parser.add_argument("--warm_lr", default=1e-6, type=float)
+    parser.add_argument("--warm_lr_epochs", default=9, type=int)
+    parser.add_argument("--final_lr", default=1e-6, type=float)
+    parser.add_argument("--lr_scheduler", default="cosine", type=str)
+    parser.add_argument("--weight_decay", default=0.1, type=float)
+    parser.add_argument("--filter_biases_wd", default=False, action="store_true")
+    parser.add_argument(
+        "--clip_gradient", default=0.1, type=float, help="Max L2 norm of the gradient"
+    )
+    parser.add_argument("--sep_optim", action="store_true", help="Use seperate optimizers during training")
     args = parser.parse_args()
 
     # setting

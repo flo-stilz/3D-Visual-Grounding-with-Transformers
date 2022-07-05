@@ -15,7 +15,7 @@ from utils.nn_distance import nn_distance, huber_loss
 from lib.ap_helper import parse_predictions
 from lib.loss import SoftmaxRankingLoss
 from utils.box_util import get_3d_box, get_3d_box_batch, box3d_iou
-from DETR.utils.box_util import box3d_iou as box3d_iou_detr
+#from DETR.utils.box_util import box3d_iou as box3d_iou_detr
 
 def eval_ref_one_sample(pred_bbox, gt_bbox, detection_module):
     """ Evaluate one reference prediction
