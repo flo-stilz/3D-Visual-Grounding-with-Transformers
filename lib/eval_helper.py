@@ -281,8 +281,8 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
         for i in range(batch_size):
             # compute the iou
             gt_ref_idx = gt_ref[i]
+            pred_ref_idx = pred_ref[i]
             if args.detection_module == "votenet":
-                pred_ref_idx = pred_ref[i]
                 pred_obb = config.param2obb(
                     pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(), 
                     pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(), 
@@ -301,8 +301,8 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                 gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
             elif args.detection_module == "3detr":
                 # add objectness masks
-                cluster_ref = data_dict['cluster_ref']
-                pred_ref_idx = torch.argmax(cluster_ref[i],0)
+                #cluster_ref = data_dict['cluster_ref']
+                #pred_ref_idx = torch.argmax(cluster_ref[i],0)
                 pred_bbox = data_dict['outputs']['box_corners'][i][pred_ref_idx]
                 pred_bbox = pred_bbox.detach().cpu().numpy()
                 gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
@@ -310,6 +310,7 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                 
             iou = eval_ref_one_sample(pred_bbox, gt_bbox, args.detection_module)
             ious.append(iou)
+            print("Iou: "+str(iou))
 
             # NOTE: get_3d_box() will return problematic bboxes
             if args.detection_module == "votenet":

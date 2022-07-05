@@ -487,7 +487,7 @@ def visualize(args):
                 config=DC,
                 args=args,
                 reference=True, 
-                post_processing=POST_DICT
+                post_processing=None
             )
         elif args.detection_module == "3detr":
             data = get_eval(
