@@ -118,7 +118,7 @@ def get_model(args):
         elif args.detection_module == "3detr": 
             # 3DETR pretrained:
             #print(pretrained_model)
-            '''
+            
             print(input_channels)
             print(int(not args.no_height))
             for param in pretrained_model.parameters():
@@ -126,8 +126,8 @@ def get_model(args):
                     print(weights)
                     break
                 break
-            '''
-            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model.pth")
+            
+            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
             pre = torch.load(pretrained_path)
     
             pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
@@ -138,13 +138,13 @@ def get_model(args):
                 pretrained_model.load_state_dict(sd, strict=False)
         
             # mount
-            '''
+            
             for param in pretrained_model.parameters():
                 for weights in param.data:
                     print(weights)
                     break
                 break
-            '''
+            
             model.Object_Detection = pretrained_model.Object_Detection
             #print(model)
             
@@ -556,6 +556,7 @@ if __name__ == "__main__":
     parser.add_argument("--match_wd", type=float, help="weight decay for Language module", default=1e-6)
     # detection module
     parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")
+    parser.add_argument("--int_layers", action="store_true", help="Use the intermediate layers of 3DETR for the ref loss")
     # 3DETR optimizer
     parser.add_argument("--detr_lr", default=5e-4, type=float)
     parser.add_argument("--warm_lr", default=1e-6, type=float)

@@ -122,8 +122,9 @@ class RefNet(nn.Module):
             #data_dict['aggregated_vote_features'] = data_dict['aggregated_features']
             data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_features'])
             # intermediate layer box features
-            for l in data_dict['aux_outputs']:
-                l['box_features'] = self.Object_Feature_MLP(l['box_features'])
+            if self.args.int_layers:
+                for l in data_dict['aux_outputs']:
+                    l['box_features'] = self.Object_Feature_MLP(l['box_features'])
                 
         elif self.args.detection_module == "votenet":
             # --------- HOUGH VOTING ---------

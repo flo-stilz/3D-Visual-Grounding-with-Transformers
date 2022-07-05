@@ -248,7 +248,7 @@ def compute_reference_loss(data_dict, config, args, reference=True):
 
         if reference:
             cluster_preds = data_dict["cluster_ref"].reshape(batch_size, len_nun_max, num_proposals)
-            if args.detection_module == "3detr":
+            if args.detection_module == "3detr" and args.int_layers:
                 int_cluster_preds = torch.zeros((len(data_dict['aux_outputs']), batch_size, len_nun_max, num_proposals)).cuda()
                 for l in range(len(data_dict['aux_outputs'])):
                     int_cluster_preds[l]= data_dict['aux_outputs'][l]['cluster_ref'].reshape(batch_size, len_nun_max, num_proposals)
@@ -278,7 +278,8 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                 
             
             labels = np.zeros((len_nun_max, num_proposals))
-            labels_int = np.zeros((len(data_dict['aux_outputs']),len_nun_max, num_proposals))
+            if args.int_layers:
+                labels_int = np.zeros((len(data_dict['aux_outputs']),len_nun_max, num_proposals))
             for j in range(len_nun_max):
                 if j < lang_num[i]:
                     # convert the bbox parameters to bbox corners
@@ -288,15 +289,16 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                                                                 pred_size_class[i], pred_size_residual[i])
                         pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
                     elif args.detection_module == "3detr":
-                        pred_bboxes_int_batch = []
-                        for l in data_dict['aux_outputs']:
-                            pred_bboxes_int_batch.append(l['box_corners'][i].detach().cpu().numpy())
+                        if args.int_layers:
+                            pred_bboxes_int_batch = []
+                            for l in data_dict['aux_outputs']:
+                                pred_bboxes_int_batch.append(l['box_corners'][i].detach().cpu().numpy())
                         pred_bbox_batch = data_dict['outputs']['box_corners'][i]
                         pred_bbox_batch = pred_bbox_batch.detach().cpu().numpy()
                         #pred_bbox_batch = get_3d_box_batch(data_dict['outputs']['size_unnormalized'][i].detach().cpu().numpy(), data_dict['outputs']['angle_continuous'][i].detach().cpu().numpy(), data_dict['outputs']['center_unnormalized'][i].detach().cpu().numpy())
                     ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
                     # ious for intermediate layers:
-                    if args.detection_module == "3detr":
+                    if args.detection_module == "3detr" and args.int_layers:
                         ious_int = []
                         for l in pred_bboxes_int_batch:
                             ious_int.append(box3d_iou_batch(l, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1))))
@@ -309,7 +311,7 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                     # clustering ious should match normal ious
                     labels[j, ious.argmax()] = 1  # treat the bbox with highest iou score as the gt
                     # labels for intermediate layers:
-                    if args.detection_module == "3detr":
+                    if args.detection_module == "3detr" and args.int_layers:
                         for l in range(len(ious_int)):
                             labels_int[l, j, ious_int[l].argmax()] = 1
                     max_ious = ious[ious_ind]
@@ -320,16 +322,17 @@ def compute_reference_loss(data_dict, config, args, reference=True):
                         max_iou_rate_5 += 1
 
             cluster_labels = torch.FloatTensor(labels).cuda()  # B proposals
-            cluster_labels_int = torch.FloatTensor(labels_int).cuda()
+            if args.int_layers:
+                cluster_labels_int = torch.FloatTensor(labels_int).cuda()
             gt_labels[i] = labels
             # reference loss
-            if args.detection_module == "3detr":
+            if args.detection_module == "3detr" and args.int_layers:
                 loss_sub = criterion(cluster_preds[i, :lang_num[i]], cluster_labels[:lang_num[i]].float().clone())
                 for l in range(len(pred_bboxes_int_batch)):
                     loss_int += criterion(int_cluster_preds[l, i, :lang_num[i]], cluster_labels_int[l,:lang_num[i]].float().clone())
                 loss_sub = (loss_int + loss_sub)/(len(pred_bboxes_int_batch)+1)
                 loss += loss_sub
-            if args.detection_module == "votenet":
+            else:
                 loss += criterion(cluster_preds[i, :lang_num[i]], cluster_labels[:lang_num[i]].float().clone())
         data_dict['max_iou_rate_0.25'] = max_iou_rate_25 / sum(lang_num.cpu().numpy())
         data_dict['max_iou_rate_0.5'] = max_iou_rate_5 / sum(lang_num.cpu().numpy())
