@@ -301,7 +301,7 @@ class Solver():
                 # save model
                 self._log("saving last models...\n")
                 model_root = os.path.join(CONF.PATH.OUTPUT, self.stamp)
-                #torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
+                torch.save(self.model.state_dict(), os.path.join(model_root, "model_last.pth"))
 
                 # update lr scheduler
                 if self.lr_scheduler:

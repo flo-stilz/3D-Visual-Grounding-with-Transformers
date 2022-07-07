@@ -95,7 +95,7 @@ def get_model(args):
         #pretrained_model = Object_Detection(input_channels)
         if args.detection_module == "votenet":
         
-            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model_last.pth")
+            pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model.pth")
             pretrained_model.load_state_dict(torch.load(pretrained_path), strict=False)
             # mount
             model.backbone_net = pretrained_model.backbone_net
@@ -552,6 +552,8 @@ if __name__ == "__main__":
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
     parser.add_argument("--dvg_plus", action="store_true", help="Regularization for the training")
     parser.add_argument("--m_enc_layers", type=int, default=1, help="Amount of encoder layers for matching module when using vanilla transformer")
+    parser.add_argument("--vt_dim_feed", type=int, default=1080, help="dimension of feedforward layers for matching modules encoder when using vanilla transformer")
+    parser.add_argument("--vt_drop", type=float, default=0.1, help="Dropout for matching module when using vanilla transformer")
     parser.add_argument("--lr_match", default=5e-5, type=float)
     parser.add_argument("--match_wd", type=float, help="weight decay for Language module", default=1e-6)
     # detection module

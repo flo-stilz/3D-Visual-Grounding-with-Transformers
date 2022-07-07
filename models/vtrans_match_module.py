@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import random
 import numpy as np
+from models.transformer.attention import MultiHeadAttention
 from utils.box_util import box3d_iou_batch
 
 class VTransMatchModule(nn.Module):
@@ -13,17 +14,27 @@ class VTransMatchModule(nn.Module):
         self.lang_size = lang_size
         self.hidden_size = hidden_size
         self.num_encoder_layers = args.m_enc_layers
+        self.dim_feedforward = args.vt_dim_feed
+        self.vt_drop = args.vt_drop
         
-        #self.vt_fuse = nn.Transformer(d_model=self.lang_size+128, nhead=8, num_encoder_layers=1, num_decoder_layers=1, dim_feedforward=256, dropout=0.1, custom_encoder=None, custom_decoder=self.decoder)
+        # reduce lang feat:
+        self.lang_reduce = nn.Sequential(
+                nn.Linear(256, 128),
+                nn.Dropout(p=0.1),
+                nn.LayerNorm(128),
+                )
+
+        # vanilla Transformer encoder layer        
         self.encoder_layer = nn.TransformerEncoderLayer(
                 d_model=self.lang_size+128,
                 nhead=8,
-                dim_feedforward=1028,
-                dropout=0.1,
+                dim_feedforward=self.dim_feedforward,
+                dropout=self.vt_drop,
                 #activation=self.enc_activation,
             )
         self.vt_fuse = nn.TransformerEncoder(self.encoder_layer, self.num_encoder_layers)
         # try without dim reduction and increase hidden size to self.lang_size + 128
+        # second try take full box features and increase input to reduction architecture and add one more 1dConv
         self.reduce = nn.Sequential(
             nn.Conv1d(self.lang_size + 128, hidden_size, 1),
             nn.ReLU()
@@ -38,6 +49,13 @@ class VTransMatchModule(nn.Module):
             nn.BatchNorm1d(hidden_size),
             nn.Conv1d(hidden_size, 1, 1)
         )
+        # use cross-attention for concatenation
+        head = 4
+        depth = 1
+        self.cross_attn = nn.ModuleList(
+            MultiHeadAttention(d_model=self.hidden_size, d_k=self.lang_size // head, d_v=self.lang_size // head, h=head) for i in range(depth))  # k, q, v
+        # d_model = 128, d_k = 32, d_v = 32, h = 4
+        
         # play with layers
         # uses embeddings of transformer to output confidence scores
         '''
@@ -92,32 +110,16 @@ class VTransMatchModule(nn.Module):
         #print(f'lang_feat shape after unsquezze: {lang_feat.shape}')
 
         # fuse
+        # normal concatenation
         features = torch.cat([features, lang_feat], dim=-1) # batch_size, num_proposals, 128 + lang_size
+        # concatenation using cross-attention
+        # reduce lang_feat dim first
+        #lang_feat = self.lang_reduce(lang_feat)
+        #features = self.cross_attn[0](features, lang_feat, lang_feat) # query, key, value,
+        #print(features.shape)
         features = features.permute(1, 0, 2).contiguous() # num_proposals, batch_size, 128 + lang_size
-        # fuse features
-        # big question what to use as tgt? -> maybe find gt bbox and best matching proposal bbox as tgt
-        # requires to change TransformerDecoderLayer
-        '''
-        if 'lang_feat_list' in data_dict or 'lang_inputs_list' in data_dict:
-            gt_ref = torch.argmax(data_dict["ref_box_label_list"], -1)
-        else:
-            gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
-        gt_labels = np.zeros((batchsize, len_nun_max, self.num_proposals))
-        lang_num = data_dict["lang_num"]
-        for i in range(batchsize):
-            for j in range(len_nun_max):
-                if j < lang_num[i]:
-                    labels = np.zeros((len_nun_max, self.num_proposals))
-                    gt = data_dict['gt_box_corners'][i][gt_ref[i,j]].detach().cpu().numpy()
-                    #gt_bbox_batch.detach().cpu().numpy()
-                    pred_bbox_batch = data_dict['outputs']['box_corners'][i]
-                    pred_bbox_batch = pred_bbox_batch.detach().cpu().numpy()
-                    ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt, (self.num_proposals, 1, 1)))
-                    # clustering ious should match normal ious
-                    labels[j, ious.argmax()] = 1
-            gt_labels[i] = labels
-        print(gt_labels.shape)
-        '''
+        
+        # Apply self-attention on fused features
         features = self.vt_fuse(features) # num_proposals, batch_size, lang_size + 128
         features = features.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
         features = self.reduce(features) # batch_size, hidden_size, num_proposals

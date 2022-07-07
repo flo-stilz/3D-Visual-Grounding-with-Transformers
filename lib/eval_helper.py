@@ -310,7 +310,6 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                 
             iou = eval_ref_one_sample(pred_bbox, gt_bbox, args.detection_module)
             ious.append(iou)
-            print("Iou: "+str(iou))
 
             # NOTE: get_3d_box() will return problematic bboxes
             if args.detection_module == "votenet":

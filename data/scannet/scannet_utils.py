@@ -113,4 +113,5 @@ def read_mesh_vertices_rgb_normal(filename):
         face = np.array([f[0] for f in plydata["face"].data])
         nxnynz = compute_normal(xyz, face)
         vertices[:,6:] = nxnynz
+        
     return vertices
