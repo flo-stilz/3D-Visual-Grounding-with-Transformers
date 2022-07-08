@@ -17,13 +17,18 @@ class VTransMatchModule(nn.Module):
         self.dim_feedforward = args.vt_dim_feed
         self.vt_drop = args.vt_drop
         
-        # reduce lang feat:
-        self.lang_reduce = nn.Sequential(
-                nn.Linear(256, 128),
-                nn.Dropout(p=0.1),
-                nn.LayerNorm(128),
-                )
-
+        # use cross-attention for concatenation
+        '''
+        self.head = 8
+        self.depth = 2
+        self.cross_attn = nn.ModuleList(
+            MultiHeadAttention(
+                    d_model=self.lang_size,
+                    d_k=self.lang_size // self.head,
+                    d_v=self.lang_size // self.head,
+                    h=self.head) for i in range(self.depth))  # k, q, v
+        # d_model = 128, d_k = 32, d_v = 32, h = 4
+        '''
         # vanilla Transformer encoder layer        
         self.encoder_layer = nn.TransformerEncoderLayer(
                 d_model=self.lang_size+128,
@@ -36,9 +41,11 @@ class VTransMatchModule(nn.Module):
         # try without dim reduction and increase hidden size to self.lang_size + 128
         # second try take full box features and increase input to reduction architecture and add one more 1dConv
         self.reduce = nn.Sequential(
-            nn.Conv1d(self.lang_size + 128, hidden_size, 1),
-            nn.ReLU()
+            nn.Conv1d(self.lang_size + 128
+                      , hidden_size, 1),
+            nn.ReLU(),
         )
+        
         # self.match = nn.Conv1d(hidden_size, 1, 1)
         self.match = nn.Sequential(
             nn.Conv1d(hidden_size, hidden_size, 1),
@@ -49,12 +56,6 @@ class VTransMatchModule(nn.Module):
             nn.BatchNorm1d(hidden_size),
             nn.Conv1d(hidden_size, 1, 1)
         )
-        # use cross-attention for concatenation
-        head = 4
-        depth = 1
-        self.cross_attn = nn.ModuleList(
-            MultiHeadAttention(d_model=self.hidden_size, d_k=self.lang_size // head, d_v=self.lang_size // head, h=head) for i in range(depth))  # k, q, v
-        # d_model = 128, d_k = 32, d_v = 32, h = 4
         
         # play with layers
         # uses embeddings of transformer to output confidence scores
@@ -116,12 +117,13 @@ class VTransMatchModule(nn.Module):
         # reduce lang_feat dim first
         #lang_feat = self.lang_reduce(lang_feat)
         #features = self.cross_attn[0](features, lang_feat, lang_feat) # query, key, value,
-        #print(features.shape)
+        #features = self.cross_attn[1](features, lang_feat, lang_feat)
         features = features.permute(1, 0, 2).contiguous() # num_proposals, batch_size, 128 + lang_size
         
         # Apply self-attention on fused features
         features = self.vt_fuse(features) # num_proposals, batch_size, lang_size + 128
         features = features.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
+        #features = features.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
         features = self.reduce(features) # batch_size, hidden_size, num_proposals
         # mask out invalid proposals
         objectness_masks = objectness_masks.permute(0, 2, 1).contiguous() # batch_size, 1, num_proposals

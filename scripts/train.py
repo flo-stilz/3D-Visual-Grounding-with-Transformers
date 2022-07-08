@@ -233,13 +233,16 @@ def get_solver(args, dataloader):
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
 
     elif args.detection_module=="3detr" and args.lang_module=="bert" and args.sep_optim:
+        # 3detr optim
         detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
         optimizer_det = get_optimizer(args, model.Object_Detection)
+        # bert optim
         lang_params = list(model.lang_encoder.parameters())
         optimizer_lang = optim.AdamW(lang_params, lr=args.lr_bert, weight_decay=args.bert_wd)
         l_params = sum(p.numel() for p in model.lang_encoder.parameters())
         print(str(l_params/1000000) + " mil. parameters in Language module")
+        # rest optim
         rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.match.parameters())
         total_params = sum(p.numel() for p in model.parameters())
         #print(pytorch_total_params)
@@ -248,7 +251,7 @@ def get_solver(args, dataloader):
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
         optimizer_match = None
 
-    elif args.detection_module == "3detr" and args.sep_optim:
+    elif args.detection_module == "3detr" and args.match_module == "scanrefer" and args.sep_optim:
         detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
         optimizer_det = get_optimizer(args, model.Object_Detection)
@@ -260,7 +263,37 @@ def get_solver(args, dataloader):
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
         optimizer_lang = None
         optimizer_match = None
+    elif args.match_module != "scanrefer" and args.sep_optim:
+        # 3detr param
+        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        print(str(detr_params/1000000) + " mil. parameters in Detection module")
+        # dvg optim
+        match_params = list(model.match.parameters())
+        optimizer_match = optim.AdamW(match_params, lr=args.lr_match, weight_decay=args.match_wd)
+        l_params = sum(p.numel() for p in model.match.parameters())
+        print(str(l_params/1000000) + " mil. parameters in Match module")
+        # rest optim
+        rest_params = list(model.lang_encoder.parameters())# + list(model.Object_Feature_MLP.parameters())
+        total_params = sum(p.numel() for p in model.parameters())
+        #print(pytorch_total_params)
+        other_params = sum(p.numel() for p in rest_params)
+        print(str(other_params/1000000) + " mil. parameters for other modules")
+        optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
+        optimizer_lang = None
+        optimizer_det = None
     else:
+        '''
+        print("one optimizer")
+        # different lr for various modules.
+        weight_dict = {
+                'detr': {'lr': 0.0001},
+                'lang': {'lr': 0.001},
+                'match': {'lr': 0.0002},
+                }
+        params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
+        # params = model.parameters()
+        optimizer_main = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
+        '''
         optimizer_main = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
         optimizer_det = None
         optimizer_lang = None
@@ -507,7 +540,7 @@ def train(args):
 
     print("initializing...")
     solver, num_params, root = get_solver(args, dataloader)
-    print("Parameters: " + str(num_params/1000000)+" mil")
+    print("Parameters: " + str(num_params/1000000)+" mil to train")
 
     print("Start training...\n")
 

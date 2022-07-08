@@ -368,19 +368,19 @@ class Solver():
     def _backward(self):
         # optimize
         self.optimizer_main.zero_grad()
-        if self.detection_module == "3detr" and self.args.sep_optim and self.detection:
+        if self.detection_module == "3detr" and self.args.sep_optim and self.detection and self.optimizer_det != None:
             self.optimizer_det.zero_grad()
         if self.language_module == "bert" and self.args.sep_optim and self.optimizer_lang != None:
             self.optimizer_lang.zero_grad()
-        if self.match_module == "dvg" and self.args.sep_optim and self.optimizer_match != None:
+        if (self.match_module == "dvg" or self.match_module == "transformer") and self.args.sep_optim and self.optimizer_match != None:
             self.optimizer_match.zero_grad()
         self._running_log["loss"].backward()
         self.optimizer_main.step()
-        if self.detection_module == "3detr" and self.args.sep_optim and self.detection:
+        if self.detection_module == "3detr" and self.args.sep_optim and self.detection and self.optimizer_det != None:
             self.optimizer_det.step()
         if self.language_module == "bert" and self.args.sep_optim and self.optimizer_lang != None:
             self.optimizer_lang.step()
-        if self.match_module == "dvg" and self.args.sep_optim and self.optimizer_match != None:
+        if (self.match_module == "dvg" or self.match_module == "transformer") and self.args.sep_optim and self.optimizer_match != None:
             self.optimizer_match.step()
 
         
@@ -452,12 +452,18 @@ class Solver():
                 curr_lr = self.optimizer_main.param_groups[0]["lr"]
                 curr_lr_lang = ''
                 curr_lr_match = ''
-                if self.detection_module == "3detr" and self.detection and self.args.sep_optim:
+                if self.optimizer_det != None:
                     curr_lr_det = self.optimizer_det.param_groups[0]["lr"]
-                if self.language_module == "bert" and self.args.sep_optim and self.optimizer_lang != None:
+                else:
+                    curr_lr_det = self.optimizer_main.param_groups[0]["lr"]
+                if self.optimizer_lang != None:
                     curr_lr_lang = self.optimizer_lang.param_groups[0]["lr"]
-                if self.match_module == "dvg" and self.args.sep_optim and self.optimizer_match != None:
+                else:
+                    curr_lr_lang = self.optimizer_main.param_groups[0]["lr"]
+                if self.optimizer_match != None:
                     curr_lr_match = self.optimizer_match.param_groups[0]["lr"]
+                else:
+                    curr_lr_match = self.optimizer_main.param_groups[0]["lr"]
                 
             # move to cuda
             for key in data_dict:
@@ -530,7 +536,7 @@ class Solver():
                 iter_time += self.log[phase]["eval"][-1]
                 self.log[phase]["iter_time"].append(iter_time)
                 if (self._global_iter_id + 1) % self.verbose == 0:
-                    
+                    '''
                     if self.detection_module == "3detr" and self.language_module == "bert" and self.match_module == "dvg" and self.detection and self.args.sep_optim:
                         self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr_lang, curr_lr_match)
                     elif self.detection_module == "3detr" and self.language_module == "bert" and self.detection and self.args.sep_optim:
@@ -539,8 +545,12 @@ class Solver():
                         self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr, curr_lr_match)
                     elif self.language_module=="bert" and self.args.sep_optim:
                         self._train_report(epoch_id, curr_lr, curr_lr, curr_lr_lang, curr_lr_match)
+                    elif self.match_module!="scanrefer" and self.args.sep_optim:
+                        self._train_report(epoch_id, curr_lr, curr_lr, curr_lr, curr_lr_match)
                     else:
                         self._train_report(epoch_id, curr_lr, curr_lr, curr_lr, curr_lr)
+                    '''
+                    self._train_report(epoch_id, curr_lr, curr_lr_det, curr_lr_lang, curr_lr_match)
                         
                 # evaluation
                 if self._global_iter_id % self.val_step == 0:
@@ -613,7 +623,7 @@ class Solver():
 
         # save check point
         self._log("saving checkpoint...\n")
-        if self.detection_module == "3detr" and self.language_module=="bert" and self.match_module=="dvg"  and self.args.sep_optim:
+        if self.optimizer_det!=None and self.optimizer_lang!=None and self.optimizer_match!=None  and self.args.sep_optim:
             save_dict = {
                 "epoch": epoch_id,
                 "model_state_dict": self.model.state_dict(),
@@ -622,7 +632,7 @@ class Solver():
                 "optimizer_lang_state_dict": self.optimizer_lang.state_dict(),
                 "optimizer_match_state_dict": self.optimizer_match.state_dict(),
             }
-        elif self.detection_module == "3detr" and self.language_module=="bert" and self.args.sep_optim:
+        elif self.optimizer_det!=None and self.optimizer_lang!=None and self.args.sep_optim:
             save_dict = {
                 "epoch": epoch_id,
                 "model_state_dict": self.model.state_dict(),
@@ -630,12 +640,19 @@ class Solver():
                 "optimizer_det_state_dict": self.optimizer_det.state_dict(),
                 "optimizer_lang_state_dict": self.optimizer_lang.state_dict(),
             }
-        elif self.detection_module == "3detr" and self.args.sep_optim:
+        elif self.optimizer_det!=None and self.args.sep_optim:
             save_dict = {
                 "epoch": epoch_id,
                 "model_state_dict": self.model.state_dict(),
                 "optimizer_main_state_dict": self.optimizer_main.state_dict(),
                 "optimizer_det_state_dict": self.optimizer_det.state_dict(),
+            }
+        elif self.optimizer_match!=None and self.args.sep_optim:
+            save_dict = {
+                "epoch": epoch_id,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_main_state_dict": self.optimizer_main.state_dict(),
+                "optimizer_match_state_dict": self.optimizer_match.state_dict(),
             }
         else:
             save_dict = {
