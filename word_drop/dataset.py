@@ -128,10 +128,10 @@ class ScannetReferenceDataset(Dataset):
                     else:
                         AssertionError
 
-                    # main_lang_feat = self.lang_main[scene_id][str(object_id)][ann_id]["main"]
-                    # main_lang_len = self.lang_main[scene_id][str(object_id)][ann_id]["len"]
-                    # first_obj = self.lang_main[scene_id][str(object_id)][ann_id]["first_obj"]
-                    # unk = self.lang_main[scene_id][str(object_id)][ann_id]["unk"]
+                    main_lang_feat = self.lang_main[scene_id][str(object_id)][ann_id]["main"]
+                    main_lang_len = self.lang_main[scene_id][str(object_id)][ann_id]["len"]
+                    first_obj = self.lang_main[scene_id][str(object_id)][ann_id]["first_obj"]
+                    unk = self.lang_main[scene_id][str(object_id)][ann_id]["unk"]
 
                 object_id_list.append(object_id)
                 object_name_list.append(object_name)
