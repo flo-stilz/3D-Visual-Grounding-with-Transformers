@@ -79,8 +79,8 @@ class LangModule(nn.Module):
 
             
             # Reverse
-            #main_lang_len = data_dict["main_lang_len_list"]
-            #main_lang_len = main_lang_len.reshape(batch_size * len_nun_max)
+            main_lang_len = data_dict["main_lang_len_list"]
+            main_lang_len = main_lang_len.reshape(batch_size * len_nun_max)
 
             if data_dict["istrain"][0] == 1 and random.random() < 0.5:
                 for i in range(word_embs.shape[0]):

@@ -97,8 +97,6 @@ class VTransMatchModule(nn.Module):
             batchsize = data_dict['ref_center_label'].shape[0]
 
         
-
-
         #---------------copy paste----------------------
         data_dict["random"] = random.random()
         # copy paste part

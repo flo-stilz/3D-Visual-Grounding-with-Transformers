@@ -843,7 +843,7 @@ def get_loss(data_dict, config, args, detection=True, reference=True, use_lang_c
         loss = data_dict['vote_loss'] + 0.5*data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1*data_dict['sem_cls_loss'] \
             + 0.1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"]
     elif args.detection_module == "3detr":
-        loss = 1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"] + 1*data_dict["obj_loss"]
+        loss = 0.1*data_dict["ref_loss"] + 0.1*data_dict["lang_loss"] + 1*data_dict["obj_loss"]
 
     loss *= 10 # amplify
 
