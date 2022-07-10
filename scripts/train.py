@@ -555,7 +555,7 @@ if __name__ == "__main__":
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10) # default 10
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=1000)
-    parser.add_argument("--lr", type=float, help="learning rate", default=1e-3) # default 1e-3
+    parser.add_argument("--lr", type=float, help="learning rate", default=2e-4) # default 1e-3
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-6) # default 1e-6
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")
     parser.add_argument("--num_proposals", type=int, default=256, help="Proposal number [default: 256]")
@@ -584,7 +584,7 @@ if __name__ == "__main__":
     parser.add_argument("--match_module", type=str, default='scanrefer', help="Match modules: scanrefer, dvg, transformer")
     parser.add_argument("--use_dist_weight_matrix", action="store_true", help="For the dvg matching module, should improve performance")
     parser.add_argument("--dvg_plus", action="store_true", help="Regularization for the training")
-    parser.add_argument("--m_enc_layers", type=int, default=1, help="Amount of encoder layers for matching module when using vanilla transformer")
+    parser.add_argument("--m_enc_layers", type=int, default=5, help="Amount of encoder layers for matching module when using vanilla transformer")
     parser.add_argument("--vt_dim_feed", type=int, default=1080, help="dimension of feedforward layers for matching modules encoder when using vanilla transformer")
     parser.add_argument("--vt_drop", type=float, default=0.1, help="Dropout for matching module when using vanilla transformer")
     parser.add_argument("--lr_match", default=5e-5, type=float)
@@ -604,6 +604,7 @@ if __name__ == "__main__":
         "--clip_gradient", default=0.1, type=float, help="Max L2 norm of the gradient"
     )
     parser.add_argument("--sep_optim", action="store_true", help="Use seperate optimizers during training")
+    parser.add_argument("--copy_paste", action="store_true", help="Use copy paste")
     args = parser.parse_args()
 
         

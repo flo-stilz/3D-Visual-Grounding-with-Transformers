@@ -80,36 +80,28 @@ class DVGMatchModule(nn.Module):
 
         # select detection module
         if self.args.detection_module == '3detr':
-            #features = data_dict['detr_features']
-            #features = features.permute(0, 2, 1)
-            #features = self.features_concat(features).permute(0, 2, 1)
             features = data_dict['aggregated_vote_features']
             objectness_masks = torch.as_tensor((data_dict['outputs']["objectness_prob"].unsqueeze(-1))>0.5,dtype=torch.float32)
         elif self.args.detection_module == 'votenet':
             features = data_dict['aggregated_vote_features'] # batch_size, num_proposal, 128
             objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
-            #features = features.permute(0, 2, 1)
-            #features = self.features_concat(features).permute(0, 2, 1)
         else:
             AssertionError
         # end
         
         batch_size, num_proposal = features.shape[:2]
-        #objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
         data_dict["random"] = random.random()
 
         # self attention part on the feature level
-        #features = self.mhatt(features, features, features, proposal_masks)
         features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
 
         
-        #len_nun_max = data_dict["lang_feat_list"].shape[1]
         if self.args.use_chunking:
             batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
 
         # copy paste part
         feature0 = features.clone()
-        if self.args.dvg_plus:
+        if self.args.copy_paste:
             # This is some random application of objectness mask
             if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
                 obj_masks = objectness_masks.bool().squeeze(2)  # batch_size, num_proposals

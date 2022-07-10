@@ -87,50 +87,85 @@ class VTransMatchModule(nn.Module):
 
         # unpack outputs from language branch
         lang_feat = data_dict["lang_emb"] # batch_size * len_nun_max, lang_size
+        #_, num_proposal = features.shape[:2]
+        lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size * len_nun_max, num_proposals, lang_size
         
-        #for key in data_dict:
-        #    print(f'{key}: {data_dict[key]}')
 
         if self.args.use_chunking:
-            data_dict["random"] = random.random()
             batchsize, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
-            # print(f'batchsize, len_nun_max: {batchsize}, {len_nun_max}')
-            features = features.unsqueeze(1).repeat(1, len_nun_max, 1, 1)
-            v1, v2, v3, v4 = features.shape[:4]
-            #print(f'v1: {v1}, v2: {v2}, v3: {v3}, v4: {v4}') # batchsize, len_nun
-            features = features.reshape(batchsize * len_nun_max, v3, v4)
-            #print(f'feature shape after unsquezze: {features.shape}')
-            #print(f'objectness_masks shape before unsquezze: {objectness_masks.shape}')
-            objectness_masks = objectness_masks.unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
-            #print(f'objectness_masks shape after unsquezze: {objectness_masks.shape}')
         else:
             batchsize = data_dict['ref_center_label'].shape[0]
 
-        #print(f'lang_feat shape: {lang_feat.shape}')
-        lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size, num_proposals, lang_size
-        #print(f'lang_feat shape after unsquezze: {lang_feat.shape}')
+        
 
+
+        #---------------copy paste----------------------
+        data_dict["random"] = random.random()
+        # copy paste part
+        
+        if self.args.copy_paste:
+            feature0 = features.clone()
+            # This is some random application of objectness mask
+            if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
+                obj_masks = objectness_masks.bool().squeeze(2)  # batch_size, num_proposals
+                obj_lens = torch.zeros(batchsize, dtype=torch.int).cuda()
+                for i in range(batchsize):
+                    obj_mask = torch.where(obj_masks[i, :] == True)[0]
+                    obj_len = obj_mask.shape[0]
+                    obj_lens[i] = obj_len
+
+
+                obj_masks_reshape = obj_masks.reshape(batchsize*self.num_proposals)
+                obj_features = features.reshape(batchsize*self.num_proposals, -1)
+                obj_mask = torch.where(obj_masks_reshape[:] == True)[0]
+                total_len = obj_mask.shape[0]
+                obj_features = obj_features[obj_mask, :].repeat(2,1)  # total_len, hidden_size
+                j = 0
+                for i in range(batchsize):
+                    obj_mask = torch.where(obj_masks[i, :] == False)[0]
+                    obj_len = obj_mask.shape[0]
+                    j += obj_lens[i]
+                    if obj_len < total_len - obj_lens[i]:
+                        feature0[i, obj_mask, :] = obj_features[j:j + obj_len, :]
+                    else:
+                        feature0[i, obj_mask[:total_len - obj_lens[i]], :] = obj_features[j:j + total_len - obj_lens[i], :]
+
+            if self.args.use_chunking:
+                feature0 = feature0.unsqueeze(1).repeat(1, len_nun_max, 1, 1)
+                v1, v2, v3, v4 = feature0.shape[:4]
+                feature0 = feature0.reshape(batchsize * len_nun_max, v3, v4)
+                objectness_masks = objectness_masks.unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
+
+            features1 = torch.cat([feature0, lang_feat], dim=-1)
+        #---------------copy paste end-------------------
+        else:
+            if self.args.use_chunking:
+                features = features.unsqueeze(1).repeat(1, len_nun_max, 1, 1)
+                v1, v2, v3, v4 = features.shape[:4]
+                features = features.reshape(batchsize * len_nun_max, v3, v4)
+                objectness_masks = objectness_masks.unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
+            features1 = torch.cat([features, lang_feat], dim=-1)
         # fuse
         # normal concatenation
-        features = torch.cat([features, lang_feat], dim=-1) # batch_size, num_proposals, 128 + lang_size
+        
         # concatenation using cross-attention
         # reduce lang_feat dim first
         #lang_feat = self.lang_reduce(lang_feat)
         #features = self.cross_attn[0](features, lang_feat, lang_feat) # query, key, value,
         #features = self.cross_attn[1](features, lang_feat, lang_feat)
-        features = features.permute(1, 0, 2).contiguous() # num_proposals, batch_size, 128 + lang_size
+        features1 = features1.permute(1, 0, 2).contiguous() # num_proposals, batch_size, 128 + lang_size
         
         # Apply self-attention on fused features
-        features = self.vt_fuse(features) # num_proposals, batch_size, lang_size + 128
-        features = features.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
+        features1 = self.vt_fuse(features1) # num_proposals, batch_size, lang_size + 128
+        features1 = features1.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
         #features = features.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
-        features = self.reduce(features) # batch_size, hidden_size, num_proposals
+        features1 = self.reduce(features1) # batch_size, hidden_size, num_proposals
         # mask out invalid proposals
         objectness_masks = objectness_masks.permute(0, 2, 1).contiguous() # batch_size, 1, num_proposals
-        features = features * objectness_masks
+        features1 = features1 * objectness_masks
 
         # match
-        confidences = self.match(features).squeeze(1) # batch_size, num_proposals
+        confidences = self.match(features1).squeeze(1) # batch_size, num_proposals
                 
         data_dict["cluster_ref"] = confidences
 
