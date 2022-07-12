@@ -7,7 +7,7 @@
 
 For additional detail, please see the ScanRefer paper:  
 "[3D Visual Grounding with Transformers](https://arxiv.org/abs/1912.08830)"  
-by [Stefan Frisch](https://github.com/ga92xug)) and [Florian Stilz](https://github.com/flo-stilz/))
+by [Stefan Frisch](https://github.com/ga92xug) and [Florian Stilz](https://github.com/flo-stilz/)
 from [Technical University of Munich](https://www.tum.de/en/).
 
 ## Setup + Dataset
