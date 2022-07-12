@@ -12,7 +12,7 @@ ToDo:
 For additional detail, please see the ScanRefer paper:  
 "[3D Visual Grounding with Transformers](https://github.com/flo-stilz/3D-Visual-Grounding-with-Transformers/blob/lang-det/paper%20%26%20figures/final_submission_3D_visual_grounding_with_transformers.pdf)"  
 by [Stefan Frisch](https://github.com/ga92xug) and [Florian Stilz](https://github.com/flo-stilz/)
-from [Technical University of Munich](https://www.tum.de/en/).
+from the [Technical University of Munich](https://www.tum.de/en/).
 
 ## Setup + Dataset
 For the setup and dataset preparation please check the ScanRefer [github page](https://github.com/daveredrum/ScanRefer).
