@@ -28,14 +28,17 @@ To reproduce our results we provide the following commands along with the result
     </tr>
     <tr>
         <td>ScanRefer (Baseline)</td>
-        <td><pre lang="shell">python script/train.py --use_color --use_chunking</pre></td>
+        <td><pre lang="shell">python script/train.py 
+        --use_color --use_chunking</pre></td>
         <td>37.05</td>
         <td>23.93</td>
         <td>rgb + color + height</td>
     </tr>
     <tr>
         <td>Ours (pretrained 3DETR-m + GRU + vTransformer) </td>
-        <td><pre lang="shell">python script/train.py --use_color --use_chunking --detection_module detr --match_module transformer</pre></td>
+        <td><pre lang="shell">python script/train.py 
+        --use_color --use_chunking --detection_module detr 
+        --match_module transformer</pre></td>
         <td>37.08</td>
         <td>26.34</td>
         <td>rgb + color + height</td>
