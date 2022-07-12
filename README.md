@@ -17,6 +17,11 @@ from [Technical University of Munich](https://www.tum.de/en/).
 ## Setup + Dataset
 For the setup and dataset preparation please check the ScanRefer [github page](https://github.com/daveredrum/ScanRefer).
 
+## Architecture
+In our architecture we replaced VoteNet by 3DETR-m and the MLP with a vanilla transformer encoder module.
+<p align="center"><img src="paper & figures/Ours_final.drawio.png" width="1000px"/></p>
+
+
 ## Results
 To reproduce our results we provide the following commands along with the results.
 
