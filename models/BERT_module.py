@@ -18,40 +18,11 @@ class BERTModule(nn.Module):
         self.use_lang_classifier = use_lang_classifier
         self.chunking = chunking
         
-        '''
-        #set Bert
-        configuration = AutoConfig.from_pretrained('distilbert-base-cased')
-
-        # configuration = DistilBertConfig()
-        # For BERT
-        #configuration.hidden_dropout_prob = hparams["b_drop"]
-        #configuration.attention_probs_dropout_prob = hparams["b_drop"]
-        # For DistilBERT
-        configuration.dropout = 0.1
-        configuration.attention_dropout = 0.1
-        
-        DistilBertModel.from_pretrained('distilbert-base-uncased')
-        self.bert = AutoModel.from_pretrained('distilbert-base-cased', config = configuration)
-        '''
-
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         self.bert.encoder.layer = BertModel(BertConfig()).encoder.layer[:self.args.num_bert_layers]
 
-        '''
-        # freeze some of the BERT weights:
-        modules = [self.bert.embeddings, *self.bert.transformer.layer[:4]] 
-        for module in modules:
-            for param in module.parameters():
-                param.requires_grad = False
-        
-        self.MLP = nn.Linear(768,hidden_size)
-        '''
-        if self.args.match_module == 'scanrefer':
-            pass
-        elif self.args.match_module == 'dvg':
+        if self.args.match_module == 'dvg':
             hidden_size = 128
-        else:
-            AssertionError
         
         self.MLP = nn.Sequential(
             nn.Linear(768,512),
@@ -100,22 +71,14 @@ class BERTModule(nn.Module):
                 data_dict["attention_mask"] = None
             # --------- End ---------
 
-
             # classify
             if self.use_lang_classifier:
                 data_dict["lang_scores"] = self.lang_cls(data_dict["lang_emb"])
-
 
         else:
             lang_input = data_dict['lang_inputs']
             lang_mask = data_dict['lang_mask']
 
-            # feed x into encoder!
-            # For BERT
-            #_, pooled_output = self.bert(input_ids=input_ids, attention_mask=mask,return_dict=False)
-            # For DistilBERT
-
-            # pooled_output = self.bert(input_ids=lang_input, attention_mask=lang_mask,return_dict=False)
             pooled_output = self.bert(input_ids=lang_input, attention_mask=lang_mask,return_dict=False)
             lang_last = pooled_output[0]
             # output of CLS Token

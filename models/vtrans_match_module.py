@@ -17,36 +17,20 @@ class VTransMatchModule(nn.Module):
         self.dim_feedforward = args.vt_dim_feed
         self.vt_drop = args.vt_drop
         
-        # use cross-attention for concatenation
-        '''
-        self.head = 8
-        self.depth = 2
-        self.cross_attn = nn.ModuleList(
-            MultiHeadAttention(
-                    d_model=self.lang_size,
-                    d_k=self.lang_size // self.head,
-                    d_v=self.lang_size // self.head,
-                    h=self.head) for i in range(self.depth))  # k, q, v
-        # d_model = 128, d_k = 32, d_v = 32, h = 4
-        '''
         # vanilla Transformer encoder layer        
         self.encoder_layer = nn.TransformerEncoderLayer(
                 d_model=self.lang_size+128,
                 nhead=8,
                 dim_feedforward=self.dim_feedforward,
                 dropout=self.vt_drop,
-                #activation=self.enc_activation,
             )
         self.vt_fuse = nn.TransformerEncoder(self.encoder_layer, self.num_encoder_layers)
-        # try without dim reduction and increase hidden size to self.lang_size + 128
-        # second try take full box features and increase input to reduction architecture and add one more 1dConv
         self.reduce = nn.Sequential(
             nn.Conv1d(self.lang_size + 128
                       , hidden_size, 1),
             nn.ReLU(),
         )
         
-        # self.match = nn.Conv1d(hidden_size, 1, 1)
         self.match = nn.Sequential(
             nn.Conv1d(hidden_size, hidden_size, 1),
             nn.ReLU(),
@@ -56,18 +40,7 @@ class VTransMatchModule(nn.Module):
             nn.BatchNorm1d(hidden_size),
             nn.Conv1d(hidden_size, 1, 1)
         )
-        
-        # play with layers
-        # uses embeddings of transformer to output confidence scores
-        '''
-        self.selection = nn.Sequential(
-                nn.Dropout(p=0.1)
-                nn.Linear(hidden_size, hidden_size),
-                nn.PReLU(),
-                nn.Dropout(p=0.1),
-                nn.Linear(hidden_size, 1)
-                ) 
-        '''
+    
 
     def forward(self, data_dict):
         """
@@ -87,7 +60,6 @@ class VTransMatchModule(nn.Module):
 
         # unpack outputs from language branch
         lang_feat = data_dict["lang_emb"] # batch_size * len_nun_max, lang_size
-        #_, num_proposal = features.shape[:2]
         lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size * len_nun_max, num_proposals, lang_size
         
 
@@ -143,20 +115,14 @@ class VTransMatchModule(nn.Module):
                 features = features.reshape(batchsize * len_nun_max, v3, v4)
                 objectness_masks = objectness_masks.unsqueeze(1).repeat(1, len_nun_max, 1, 1).reshape(batchsize * len_nun_max, v3, 1)
             features1 = torch.cat([features, lang_feat], dim=-1)
-        # fuse
-        # normal concatenation
         
-        # concatenation using cross-attention
-        # reduce lang_feat dim first
-        #lang_feat = self.lang_reduce(lang_feat)
-        #features = self.cross_attn[0](features, lang_feat, lang_feat) # query, key, value,
-        #features = self.cross_attn[1](features, lang_feat, lang_feat)
+        # fuse
         features1 = features1.permute(1, 0, 2).contiguous() # num_proposals, batch_size, 128 + lang_size
         
         # Apply self-attention on fused features
         features1 = self.vt_fuse(features1) # num_proposals, batch_size, lang_size + 128
         features1 = features1.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
-        #features = features.permute(1, 2, 0).contiguous() # batch_size, lang_size +128, num_proposals
+    
         features1 = self.reduce(features1) # batch_size, hidden_size, num_proposals
         # mask out invalid proposals
         objectness_masks = objectness_masks.permute(0, 2, 1).contiguous() # batch_size, 1, num_proposals

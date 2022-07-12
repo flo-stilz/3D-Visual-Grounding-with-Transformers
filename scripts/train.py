@@ -48,7 +48,6 @@ def get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, split, config
         # language module
         lang_module = args.lang_module
     )
-    # dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
 
     return dataset, dataloader
@@ -92,7 +91,6 @@ def get_model(args):
             lang_module = args.lang_module,
         )
 
-        #pretrained_model = Object_Detection(input_channels)
         if args.detection_module == "votenet":
         
             pretrained_path = os.path.join(CONF.PATH.OUTPUT, args.use_pretrained, "model.pth")
@@ -116,9 +114,7 @@ def get_model(args):
                     param.requires_grad = False
         
         elif args.detection_module == "3detr": 
-            # 3DETR pretrained:
-            #print(pretrained_model)
-            
+            # 3DETR pretrained:            
             print(input_channels)
             print(int(not args.no_height))
             for param in pretrained_model.parameters():
@@ -153,11 +149,7 @@ def get_model(args):
                 for param in model.Object_Detection.parameters():
                     param.requires_grad = False
                     
-        #print(model)
-    
-    # to CUDA
-    # os.environ["CUDA_VISIBLE_DEVICES"]="1"
-    # print(f'Cuda available: {torch.cuda.is_available()}')
+
     print(model)
     model = model.cuda()
 
@@ -363,9 +355,6 @@ def save_info(args, root, num_params, train_dataset, val_dataset):
 
     with open(os.path.join(root, "info.json"), "w") as f:
         json.dump(info, f, indent=4)
-    
-    #writer1 = tf.summary.create_file_writer(root + '/config')
-    #write_string_summary_v2(writer1, get_summary_str(args, weight_dict))
 
 
 
@@ -433,9 +422,6 @@ def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes, lang_num_max):
             scanrefer_val_new_scene = []
             scene_id = ""
             for data in scanrefer_val:
-                # if data["scene_id"] not in scanrefer_val_new:
-                # scanrefer_val_new[data["scene_id"]] = []
-                # scanrefer_val_new[data["scene_id"]].append(data)
                 if scene_id != data["scene_id"]:
                     scene_id = data["scene_id"]
                     if len(scanrefer_val_new_scene) > 0:
@@ -482,7 +468,6 @@ def get_summary_str(args, weight_dict):
     for key, value in vars(args).items():
         string += f'{key}: {value} |'
     lines.append(string)
-    # geht so nicht auf jeden fall
     lines.append('\n')
     lines.append(str(weight_dict))
     # Add initial spaces to avoid markdown formatting in TensorBoard
@@ -495,12 +480,6 @@ def train(args):
     if args.use_chunking:
         scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_new, scanrefer_val_new = get_scanrefer(
         SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
-       
-        # solely for quick testing:
-        #######################################
-        #scanrefer_train = scanrefer_train[:100]
-        #scanrefer_val = scanrefer_val[:30]
-        #######################################
         scanrefer = {
             "train": scanrefer_train,
             "val": scanrefer_val
@@ -519,12 +498,6 @@ def train(args):
         }
     else:
         scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
-
-        # solely for quick testing:
-        #######################################
-        #scanrefer_train = scanrefer_train[:20]
-        #scanrefer_val = scanrefer_val[:10]
-        #######################################
         scanrefer = {
             "train": scanrefer_train,
             "val": scanrefer_val
@@ -590,7 +563,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr_match", default=5e-5, type=float)
     parser.add_argument("--match_wd", type=float, help="weight decay for Language module", default=1e-6)
     # detection module
-    parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, detr")
+    parser.add_argument("--detection_module", type=str, default='votenet', help="Detection modules: votenet, 3detr")
     parser.add_argument("--int_layers", action="store_true", help="Use the intermediate layers of 3DETR for the ref loss")
     # 3DETR optimizer
     parser.add_argument("--detr_lr", default=5e-4, type=float)

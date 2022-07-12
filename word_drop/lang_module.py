@@ -36,7 +36,6 @@ class LangModule(nn.Module):
             self.mhatt = MultiHeadAttention(d_model=128, d_k=16, d_v=16, h=4, dropout=.1, identity_map_reordering=False,
                                             attention_module=None,
                                             attention_module_kwargs=None)
-
         # --------- End ---------        
 
         # language classifier
@@ -60,9 +59,7 @@ class LangModule(nn.Module):
             lang_len = lang_len.reshape(batch_size * len_nun_max)
 
             # --------- DVG word drop ---------
-            
             first_obj = data_dict["first_obj_list"].reshape(batch_size * len_nun_max)
-
             if data_dict["istrain"][0] == 1 and random.random() < 0.5:
                 for i in range(word_embs.shape[0]):
                     word_embs[i, first_obj] = data_dict["unk"][0]
@@ -77,7 +74,6 @@ class LangModule(nn.Module):
                         num = random.randint(0, len-1)
                         word_embs[i, num] = data_dict["unk"][0]
 
-            
             # Reverse
             main_lang_len = data_dict["main_lang_len_list"]
             main_lang_len = main_lang_len.reshape(batch_size * len_nun_max)
@@ -89,15 +85,11 @@ class LangModule(nn.Module):
                     new_word_emb[:new_len] = word_embs[i, main_lang_len[i]:lang_len[i]]
                     new_word_emb[new_len:lang_len[i]] = word_embs[i, :main_lang_len[i]]
                     word_embs[i] = new_word_emb
-
             # --------- word drop end ---------
 
             lang_feat = pack_padded_sequence(word_embs, lang_len.cpu(), batch_first=True, enforce_sorted=False)
-
             out, lang_last = self.language_encoder(lang_feat) 
-            # out = [batchsize, sequence_length, hidden_size], [num_layers, batchsize, hiddensize]  
             
-
             # --------- DVG fusion module ---------
             if self.args.match_module == 'dvg':
                 padded = pad_packed_sequence(out, batch_first=True)
@@ -129,7 +121,6 @@ class LangModule(nn.Module):
 
         else:
             word_embs = data_dict["lang_feat"]
-
             lang_feat = pack_padded_sequence(word_embs, data_dict["lang_len"].cpu(), batch_first=True, enforce_sorted=False)
     
             # encode description

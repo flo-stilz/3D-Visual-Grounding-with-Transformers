@@ -125,8 +125,6 @@ class ScannetReferenceDataset(Dataset):
                         lang_feat = self.lang[scene_id][str(object_id)][ann_id]
                         lang_len = len(self.scanrefer_new[idx][i]["token"]) + 2
                         lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN + 2 else CONF.TRAIN.MAX_DES_LEN + 2
-                    else:
-                        AssertionError
 
                     main_lang_feat = self.lang_main[scene_id][str(object_id)][ann_id]["main"]
                     main_lang_len = self.lang_main[scene_id][str(object_id)][ann_id]["len"]
@@ -143,8 +141,6 @@ class ScannetReferenceDataset(Dataset):
                 elif self.lang_module == 'bert':
                     lang_inputs_list.append(lang_feat['input_ids'])
                     lang_mask_list.append(lang_feat['attention_mask'])                    
-                else:
-                    AssertionError
 
                 main_lang_feat_list.append(main_lang_feat)
                 main_lang_len_list.append(main_lang_len)
@@ -581,44 +577,6 @@ class ScannetReferenceDataset(Dataset):
         return unique_multiple_lookup
 
     def _tranform_des_gru(self):
-        '''
-        with open(GLOVE_PICKLE, "rb") as f:
-            glove = pickle.load(f)
-
-        lang = {}
-        for data in self.scanrefer:
-            scene_id = data["scene_id"]
-            object_id = data["object_id"]
-            ann_id = data["ann_id"]
-
-            if scene_id not in lang:
-                lang[scene_id] = {}
-
-            if object_id not in lang[scene_id]:
-                lang[scene_id][object_id] = {}
-
-            if ann_id not in lang[scene_id][object_id]:
-                lang[scene_id][object_id][ann_id] = {}
-
-            # tokenize the description
-            tokens = data["token"]
-            
-            embeddings = np.zeros((CONF.TRAIN.MAX_DES_LEN, 300))
-            # tokens = ["sos"] + tokens + ["eos"]
-            # embeddings = np.zeros((CONF.TRAIN.MAX_DES_LEN + 2, 300))
-            for token_id in range(CONF.TRAIN.MAX_DES_LEN):
-                if token_id < len(tokens):
-                    token = tokens[token_id]
-                    if token in glove:
-                        embeddings[token_id] = glove[token]
-                    else:
-                        embeddings[token_id] = glove["unk"]
-                        
-            # store
-            lang[scene_id][object_id][ann_id] = embeddings
-
-        return lang
-        '''
         with open(GLOVE_PICKLE, "rb") as f:
             glove = pickle.load(f)
 
@@ -730,7 +688,6 @@ class ScannetReferenceDataset(Dataset):
         print("loading data...")
         # load language features
         
-
         # add scannet data
         self.scene_list = sorted(list(set([data["scene_id"] for data in self.scanrefer])))
 
