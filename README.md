@@ -1,14 +1,15 @@
 # 3D-Visual-Grounding-with-Transformers
+(add qualitative results as a impression)
 
 
 ## Introduction
 3D visual grounding is the task of localizing a target object in a 3D scene given a natural language description. This work focuses on developing a transformer architecture for bounding box prediction around a target object that is described by a natural language description.
 
-## Setup + Dataset +
+## Setup + Dataset
 For the setup and dataset preparation please check the ScanRefer [github page](https://github.com/daveredrum/ScanRefer).
 
-## Models
-To reproduce our results we provide the following model along with the weights and the command.
+## Results
+To reproduce our results we provide the following commands along with the results.
 
 <table>
     <col>
@@ -19,18 +20,25 @@ To reproduce our results we provide the following model along with the weights a
         <th rowspan=2>Name</th>
         <th rowspan=2>Command</th>
         <th colspan=2 scope="colgroup">Overall</th>
-        <th rowspan=2>Weights</th>
+        <th rowspan=2>Comments</th>
     </tr>
     <tr>
         <td>Acc<!-- -->@<!-- -->0.25IoU</td>
         <td>Acc<!-- -->@<!-- -->0.5IoU</td>
     </tr>
     <tr>
-        <td>xyz</td>
-        <td><pre lang="shell">python script/train.py --no_lang_cls</pre></td>
-        <td>36.01</td>
-        <td>23.76</td>
-        <td><a href=http://kaldir.vc.in.tum.de/scanrefer_pretrained_XYZ.zip>weights</a></td>
+        <td>ScanRefer (Baseline)</td>
+        <td><pre lang="shell">python script/train.py --use_color --use_chunking</pre></td>
+        <td>37.05</td>
+        <td>23.93</td>
+        <td>rgb + color + height</td>
+    </tr>
+    <tr>
+        <td>Ours (pretrained 3DETR-m + GRU + vTransformer) </td>
+        <td><pre lang="shell">python script/train.py --use_color --use_chunking --detection_module detr --match_module transformer</pre></td>
+        <td>37.08</td>
+        <td>26.34</td>
+        <td>rgb + color + height</td>
     </tr>
 
 </table>
