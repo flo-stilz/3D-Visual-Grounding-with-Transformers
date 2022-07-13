@@ -1,8 +1,7 @@
-# 3D-Visual-Grounding-with-Transformers
-(add qualitative results as a impression)
+# 3D Visual Grounding with Transformers
+
 ToDo: 
 - update paper with final version
-- qualitative results as a teaser
 - check commands in table
 
 <p align="center"><img src="paper & figures/qual_analysis2.jpg" width="800px"/></p>
