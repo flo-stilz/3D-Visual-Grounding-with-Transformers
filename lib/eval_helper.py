@@ -15,7 +15,6 @@ from utils.nn_distance import nn_distance, huber_loss
 from lib.ap_helper import parse_predictions
 from lib.loss import SoftmaxRankingLoss
 from utils.box_util import get_3d_box, get_3d_box_batch, box3d_iou
-#from DETR.utils.box_util import box3d_iou as box3d_iou_detr
 
 def eval_ref_one_sample(pred_bbox, gt_bbox, detection_module):
     """ Evaluate one reference prediction
@@ -26,13 +25,8 @@ def eval_ref_one_sample(pred_bbox, gt_bbox, detection_module):
     Returns:
         iou: intersection over union score
     """
-    if detection_module == "votenet":
-        iou = box3d_iou(pred_bbox, gt_bbox)
-    elif detection_module == "3detr":
-        iou = box3d_iou(pred_bbox, gt_bbox)
-        #iou = box3d_iou(pred_bbox, gt_bbox)
+    iou = box3d_iou(pred_bbox, gt_bbox)
     
-
     return iou
 
 def construct_bbox_corners(center, box_size):
@@ -254,11 +248,7 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                         pred_bbox = pred_bbox.detach().cpu().numpy()
                         gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
                         gt_bbox = gt_bbox.detach().cpu().numpy()
-                        
-                        #gt_bbox = get_3d_box(data_dict['gt_box_sizes'][i][gt_ref_idx].detach().cpu().numpy(), data_dict['gt_box_angles'][i][gt_ref_idx].detach().cpu().numpy(), data_dict['gt_box_centers'][i][gt_ref_idx].detach().cpu().numpy())
-                        #pred_bbox = get_3d_box(data_dict['outputs']['size_unnormalized'][i][pred_ref_idx].detach().cpu().numpy(),data_dict['outputs']['angle_continuous'][i][pred_ref_idx].detach().cpu().numpy(), data_dict['outputs']['center_unnormalized'][i][pred_ref_idx].detach().cpu().numpy())
-                        
-                        #gt_bbox = data_dict['final_gt_box_corner'][i].detach().cpu().numpy()
+                       
                     iou = eval_ref_one_sample(pred_bbox, gt_bbox, args.detection_module)
                     ious.append(iou)
 
@@ -300,9 +290,6 @@ def get_eval(data_dict, config, reference, args, use_lang_classifier=False, use_
                 pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
                 gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
             elif args.detection_module == "3detr":
-                # add objectness masks
-                #cluster_ref = data_dict['cluster_ref']
-                #pred_ref_idx = torch.argmax(cluster_ref[i],0)
                 pred_bbox = data_dict['outputs']['box_corners'][i][pred_ref_idx]
                 pred_bbox = pred_bbox.detach().cpu().numpy()
                 gt_bbox = data_dict['gt_box_corners'][i][gt_ref_idx]
