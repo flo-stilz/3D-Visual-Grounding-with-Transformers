@@ -42,10 +42,7 @@ class RefNet(nn.Module):
         if self.args.detection_module == "3detr":
             self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
             
-            self.Object_Feature_MLP = nn.Sequential( # convert box_features to transfer it to match module # maybe change design
-                    #nn.Dropout(p=0.1),
-                    #nn.Linear(256, 256),
-                    #nn.PReLU(),
+            self.Object_Feature_MLP = nn.Sequential( # convert box_features to transfer it to match module
                     nn.Dropout(p=0.1),
                     nn.Linear(256, 128),
                     )
@@ -119,7 +116,6 @@ class RefNet(nn.Module):
         # --------- 3DETR ----------------
         if self.args.detection_module == "3detr":
             data_dict = self.Object_Detection(data_dict)
-            #data_dict['aggregated_vote_features'] = data_dict['aggregated_features']
             data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_features'])
             # intermediate layer box features
             if self.args.int_layers:
