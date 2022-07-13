@@ -5,7 +5,7 @@ ToDo:
 - qualitative results as a teaser
 - check commands in table
 
-<p align="center"><img src="paper & figures/qual_analysis2.png" width="1000px"/></p>
+<p align="center"><img src="paper & figures/qual_analysis2.jpg" width="800px"/></p>
 
 
 ## Introduction
