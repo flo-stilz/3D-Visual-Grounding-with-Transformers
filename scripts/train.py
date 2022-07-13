@@ -115,8 +115,6 @@ def get_model(args):
         
         elif args.detection_module == "3detr": 
             # 3DETR pretrained:            
-            print(input_channels)
-            print(int(not args.no_height))
             for param in pretrained_model.parameters():
                 for weights in param.data:
                     print(weights)
@@ -218,8 +216,6 @@ def get_solver(args, dataloader):
         print(str(l_params/1000000) + " mil. parameters in Match module")
         # rest
         rest_params = list(model.Object_Feature_MLP.parameters())
-        total_params = sum(p.numel() for p in model.parameters())
-        #print(pytorch_total_params)
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
@@ -236,8 +232,6 @@ def get_solver(args, dataloader):
         print(str(l_params/1000000) + " mil. parameters in Language module")
         # rest optim
         rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.match.parameters())
-        total_params = sum(p.numel() for p in model.parameters())
-        #print(pytorch_total_params)
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
@@ -248,8 +242,6 @@ def get_solver(args, dataloader):
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
         optimizer_det = get_optimizer(args, model.Object_Detection)
         rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.lang_encoder.parameters())+ list(model.match.parameters())
-        total_params = sum(p.numel() for p in model.parameters())
-        #print(pytorch_total_params)
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
@@ -266,26 +258,12 @@ def get_solver(args, dataloader):
         print(str(l_params/1000000) + " mil. parameters in Match module")
         # rest optim
         rest_params = list(model.lang_encoder.parameters())# + list(model.Object_Feature_MLP.parameters())
-        total_params = sum(p.numel() for p in model.parameters())
-        #print(pytorch_total_params)
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
         optimizer_lang = None
         optimizer_det = None
     else:
-        '''
-        print("one optimizer")
-        # different lr for various modules.
-        weight_dict = {
-                'detr': {'lr': 0.0001},
-                'lang': {'lr': 0.001},
-                'match': {'lr': 0.0002},
-                }
-        params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
-        # params = model.parameters()
-        optimizer_main = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
-        '''
         optimizer_main = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.wd)
         optimizer_det = None
         optimizer_lang = None
@@ -524,9 +502,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", type=str, help="tag for the training, e.g. cuda_wl", default="")
     parser.add_argument("--gpu", type=str, help="gpu", default="0")
-    parser.add_argument("--batch_size", type=int, help="batch size", default=14) # initially 14
+    parser.add_argument("--batch_size", type=int, help="batch size", default=7)
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
-    parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10) # default 10
+    parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=1000)
     parser.add_argument("--lr", type=float, help="learning rate", default=2e-4) # default 1e-3
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-6) # default 1e-6
