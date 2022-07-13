@@ -23,7 +23,7 @@ In our architecture we replaced VoteNet by 3DETR-m and the MLP with a vanilla tr
 
 
 ## Results
-To reproduce our results we provide the following commands along with the results.
+To reproduce our results we provide the following commands along with the results. The pretrained models should be in the outputs folder.
 
 <table>
     <col>
@@ -52,7 +52,8 @@ To reproduce our results we provide the following commands along with the result
         <td>Ours (pretrained 3DETR-m + GRU + vTransformer) </td>
         <td><pre lang="shell">python script/train.py 
         --use_color --use_chunking --detection_module detr 
-        --match_module transformer</pre></td>
+        --match_module transformer
+        --pretrained 3detr</pre></td>
         <td>37.08</td>
         <td>26.34</td>
         <td>rgb + color + height</td>
