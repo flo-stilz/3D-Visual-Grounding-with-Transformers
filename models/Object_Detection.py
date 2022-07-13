@@ -75,17 +75,6 @@ class BoxProcessor(object):
         return self.dataset_config.box_parametrization_to_corners(
             box_center_unnorm, box_size_unnorm, box_angle
         )
-    def box_to_corners(
-        self, box_center_unnorm, box_size_unnorm, box_angle
-    ):
-        for i in range(box_center_unnorm.shape[0]):
-            print(box_size_unnorm.shape)
-            if i==0:
-                box_corners = construct_bbox_corners(box_center_unnorm[i].detach().cpu().numpy(), box_size_unnorm[i].detach().cpu().numpy())
-            else:
-                box_corners = box_corners.vstack((box_corners, construct_bbox_corners(box_center_unnorm[i].detach().cpu().numpy(), box_size_unnorm[i].detach().cpu().numpy())))
-                
-        return box_corners
 
 
 class Object_Detection(nn.Module):
@@ -338,10 +327,6 @@ class Object_Detection(nn.Module):
             box_corners = self.box_processor.box_parametrization_to_corners(
                 center_unnormalized, size_unnormalized, angle_continuous
             )
-            '''
-            box_corners = self.box_processor.box_to_corners(center_unnormalized, size_unnormalized, angle_continuous)
-            print(box_corners.shape)
-            '''
             # below are not used in computing loss (only for matching/mAP eval)
             # we compute them with no_grad() so that distributed training does not complain about unused variables
             with torch.no_grad():
@@ -465,84 +450,24 @@ class Object_Detection(nn.Module):
             query_xyz, point_cloud_dims, box_features
         )
         
-        '''
-        print(box_pred["sem_cls_logits"].size())
-        print(box_pred["center_normalized"].size())
-        print(box_pred["center_unnormalized"].size())
-        print(box_pred["size_normalized"].size())
-        print(box_pred["size_unnormalized"].size())
-        print(box_pred["angle_logits"].size())
-        print(box_pred["angle_residual"].size())
-        print(box_pred["angle_residual_normalized"].size())
-        print(box_pred["angle_continuous"].size())
-        print(box_pred["objectness_prob"].size())
-        print(box_pred["sem_cls_prob"].size())
-        print(box_pred["box_corners"].size())
-        '''
-        # try to adapt output:
-        '''
-        data_dict['objectness_scores'] = box_pred["objectness_prob"]
-        data_dict['center'] = box_pred["center_normalized"]
-        data_dict['heading_scores'] = box_pred["angle_logits"]
-        data_dict['heading_residuals_normalized'] = box_pred["angle_residual_normalized"]
-        data_dict['heading_residuals'] = box_pred["angle_residual"]
-        #data_dict['size_scores'] = box_pred[]
-        data_dict['size_residuals_normalized'] = box_pred["size_normalized"]
-        data_dict['size_residuals'] = box_pred["size_unnormalized"]
-        data_dict['sem_cls_scores'] = box_pred["sem_cls_logits"] # maybe use sem_cls_logits
-        data_dict['aggregated_vote_xyz'] = box_pred["center_offset"]
-        '''
         data_dict['outputs'] = box_predictions['outputs']
         data_dict['aux_outputs'] = box_predictions['aux_outputs']
         
         
         # final decoder layer output
         box_final_features = box_features[-1].clone()
-        #box_final_features = torch.zeros(256,2,256).cuda()
         features = box_final_features.transpose(0, 1)
-        #data_dict["aggregated_vote_features"] = self.feature_processor(features)
+        # store final box features for fusion module
         data_dict["aggregated_features"] = features
+
         
-        # look at box_predictions
-        #return box_predictions
-
-        '''
-        xyz, features = self._break_up_pc(pointcloud)
-
-        # --------- 4 SET ABSTRACTION LAYERS ---------
-        xyz, features, fps_inds = self.sa1(xyz, features)
-        data_dict['sa1_inds'] = fps_inds
-        data_dict['sa1_xyz'] = xyz
-        data_dict['sa1_features'] = features
-
-        xyz, features, fps_inds = self.sa2(xyz, features) # this fps_inds is just 0,1,...,1023
-        data_dict['sa2_inds'] = fps_inds
-        data_dict['sa2_xyz'] = xyz
-        data_dict['sa2_features'] = features
-
-        xyz, features, fps_inds = self.sa3(xyz, features) # this fps_inds is just 0,1,...,511
-        data_dict['sa3_xyz'] = xyz
-        data_dict['sa3_features'] = features
-
-        xyz, features, fps_inds = self.sa4(xyz, features) # this fps_inds is just 0,1,...,255
-        data_dict['sa4_xyz'] = xyz
-        data_dict['sa4_features'] = features
-
-        # --------- 2 FEATURE UPSAMPLING LAYERS --------
-        features = self.fp1(data_dict['sa3_xyz'], data_dict['sa4_xyz'], data_dict['sa3_features'], data_dict['sa4_features'])
-        features = self.fp2(data_dict['sa2_xyz'], data_dict['sa3_xyz'], data_dict['sa2_features'], features)
-        data_dict['fp2_features'] = features
-        data_dict['fp2_xyz'] = data_dict['sa2_xyz']
-        num_seed = data_dict['fp2_xyz'].shape[1]
-        data_dict['fp2_inds'] = data_dict['sa1_inds'][:,0:num_seed] # indices among the entire input point clouds
-        '''
         return data_dict
     
 
 if __name__=='__main__':
-    backbone_net = Object_Detection(input_feature_dim=3).cuda()
-    print(backbone_net)
-    backbone_net.eval()
-    out = backbone_net(torch.rand(16,20000,6).cuda())
+    object_detection = Object_Detection(input_feature_dim=3).cuda()
+    print(object_detection)
+    object_detection.eval()
+    out = object_detection(torch.rand(16,20000,6).cuda())
     for key in sorted(out.keys()):
         print(key, '\t', out[key].shape)
