@@ -19,7 +19,7 @@ from the [Technical University of Munich](https://www.tum.de/en/).
 For the setup and dataset preparation please check the ScanRefer [github page](https://github.com/daveredrum/ScanRefer).
 
 ## Architecture
-In our architecture we replaced VoteNet by 3DETR-m and added a vanilla transformer encoder to the localization module.
+In our architecture we replaced VoteNet by 3DETR-m and added a vanilla transformer encoder to the fusion module.
 <p align="center"><img src="paper & figures/Ours_final.drawio.png" width="1000px"/></p>
 
 
