@@ -198,7 +198,6 @@ def compute_box_and_sem_cls_loss(data_dict, config):
     sem_cls_loss = torch.sum(sem_cls_loss * objectness_label)/(torch.sum(objectness_label)+1e-6)
 
     return center_loss, heading_class_loss, heading_residual_normalized_loss, size_class_loss, size_residual_normalized_loss, sem_cls_loss
-    #return center_loss, heading_class_loss, heading_residual_normalized_loss, size_residual_normalized_loss, sem_cls_loss
 
 def compute_reference_loss(data_dict, config, args, reference=True):
     """ Compute cluster reference loss
@@ -337,11 +336,9 @@ def compute_reference_loss(data_dict, config, args, reference=True):
         data_dict['max_iou_rate_0.25'] = max_iou_rate_25 / sum(lang_num.cpu().numpy())
         data_dict['max_iou_rate_0.5'] = max_iou_rate_5 / sum(lang_num.cpu().numpy())
 
-        # print("max_iou_rate", data_dict['max_iou_rate_0.25'], data_dict['max_iou_rate_0.5'])
         cluster_labels = torch.FloatTensor(gt_labels).cuda()  # B len_nun_max proposals
-        # print("cluster_labels", cluster_labels.shape)
         loss = loss / batch_size
-        # print("ref_loss", loss)
+        
         return loss, cluster_preds, cluster_labels
     
     else:
@@ -357,7 +354,6 @@ def compute_reference_loss(data_dict, config, args, reference=True):
             gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
         elif args.detection_module == "3detr":
             gt_bbox_batch = dataset_config.box_parametrization_to_corners(torch.as_tensor(gt_obb_batch[:,0:3]), torch.as_tensor(gt_obb_batch[:,3:6]), torch.as_tensor(gt_obb_batch[:,6]))
-            #gt_bbox_batch = data_dict["gt_box_corners"][data_dict["ref_cluster_label"]]
 
         # compute the iou score for all predictd positive ref
         batch_size, num_proposals = cluster_preds.shape
@@ -681,7 +677,7 @@ def loss_size(outputs, data_dict, assignments):
         size_loss = torch.zeros(1, device=pred_box_sizes.device).squeeze()
     return size_loss
 
-# Define matcher and loss weights:
+# Define matcher and loss weights like in 3DETR paper:
 matcher = Matcher(1,0,2,0)
 giou_loss_weight = 0
 sem_cls_loss_weight = 1
@@ -709,7 +705,6 @@ def single_output_forward(outputs, data_dict):
 
     losses = {}
 
-    # change it --> not working yet
     losses['center_loss'] = loss_center(outputs, data_dict, assignments)
     losses['size_loss'] = loss_size(outputs, data_dict, assignments)
     losses['giou_loss'] = loss_giou(outputs, data_dict, assignments)
@@ -823,9 +818,6 @@ def get_loss(data_dict, config, args, detection=True, reference=True, use_lang_c
         data_dict["ref_loss"] = ref_loss
     else:
         # # Reference loss
-        # ref_loss, _, cluster_labels = compute_reference_loss(data_dict, config)
-        # data_dict["cluster_labels"] = cluster_labels
-        # not covered for 3DETR yet:
         data_dict["cluster_labels"] = objectness_label.new_zeros(objectness_label.shape).cuda()
         data_dict["cluster_ref"] = objectness_label.new_zeros(objectness_label.shape).float().cuda()
 
