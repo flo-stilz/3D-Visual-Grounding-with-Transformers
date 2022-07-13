@@ -61,9 +61,9 @@ We have implemented a chunking mechanism which significantly reduced the trainin
     <tr>
         <td>Ours (pretrained 3DETR-m + GRU + vTransformer) </td>
         <td><pre lang="shell">python script/train.py 
-        --use_color --use_chunking --detection_module detr 
+        --use_color --use_chunking --detection_module 3detr 
         --match_module transformer
-        --use_pretrained <folder></pre></td>
+        --use_pretrained 'folder' </pre></td>
         <td>37.08</td>
         <td>26.34</td>
         <td>rgb + color + height</td>
