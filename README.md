@@ -5,6 +5,8 @@ ToDo:
 - qualitative results as a teaser
 - check commands in table
 
+<p align="center"><img src="paper & figures/qual_analysis2.png" width="1000px"/></p>
+
 
 ## Introduction
 3D visual grounding is the task of localizing a target object in a 3D scene given a natural language description. This work focuses on developing a transformer architecture for bounding box prediction around a target object that is described by a natural language description.
