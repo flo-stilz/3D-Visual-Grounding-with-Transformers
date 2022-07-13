@@ -24,6 +24,7 @@ In our architecture we replaced VoteNet by 3DETR-m and the MLP with a vanilla tr
 
 ## Results
 To reproduce our results we provide the following commands along with the results. The pretrained models should be in the outputs folder.
+We have implemented a chunking mechanism which significantly reduced the training time compared to the normal ScanRefer. The training of the baseline model takes around 4 hours on a current GPU (NVIDIA Tesla T4).
 
 <table>
     <col>
