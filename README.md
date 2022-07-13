@@ -1,11 +1,6 @@
 # 3D Visual Grounding with Transformers
 
-ToDo: 
-- update paper with final version
-- check commands in table
-
 <p align="center"><img src="paper & figures/qual_analysis2.jpg" width="800px"/></p>
-
 
 ## Introduction
 3D visual grounding is the task of localizing a target object in a 3D scene given a natural language description. This work focuses on developing a transformer architecture for bounding box prediction around a target object that is described by a natural language description.
@@ -24,7 +19,7 @@ In our architecture we replaced VoteNet by 3DETR-m and added a vanilla transform
 
 
 ## Results
-To reproduce our results we provide the following commands along with the results. The pretrained models should be in the outputs folder.
+To reproduce our results we provide the following commands along with the results. The pretrained models are in the outputs folder.
 We have implemented a chunking mechanism which significantly reduced the training time compared to the normal ScanRefer. The training of the baseline model takes around 4 hours on a current GPU (NVIDIA Tesla T4).
 
 <table>
@@ -63,7 +58,8 @@ We have implemented a chunking mechanism which significantly reduced the trainin
     <tr>
         <td>Ours (pretrained 3DETR-m + GRU + vTransformer) </td>
         <td><pre lang="shell">python script/train.py 
-        --use_color --use_chunking --detection_module 3detr 
+        --use_color --use_chunking 
+        --detection_module 3detr 
         --match_module transformer
         --use_pretrained 'folder' </pre></td>
         <td>37.08</td>
