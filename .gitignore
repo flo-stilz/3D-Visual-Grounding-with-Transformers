@@ -23,7 +23,7 @@ lib/pointnet2/dist/
 lib/pointnet2/pointnet2.egg-info/
 
 # output
-outputs/
+outputs/*
 !outputs/pretrained_VoteNet
 !outputs/pretrained_3DETR
 
