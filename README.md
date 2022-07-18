@@ -39,32 +39,32 @@ We have implemented a chunking mechanism which significantly reduced the trainin
     </tr>
     <tr>
         <td>ScanRefer (Baseline)</td>
-        <td><pre lang="shell">python script/train.py 
+        <td><pre lang="shell">python scripts/train.py 
         --use_color --lr 1e-3 --batch_size 14</pre></td>
         <td>37.05</td>
         <td>23.93</td>
-        <td>rgb + color + height</td>
+        <td>xyz + color + height</td>
     </tr>
     <tr>
         <td>ScanRefer with pretrained VoteNet (optimized Baseline)</td>
-        <td><pre lang="shell">python script/train.py 
+        <td><pre lang="shell">python scripts/train.py 
         --use_color --use_chunking 
         --use_pretrained 'folder' 
         --lr 1e-3 --batch_size 14</pre></td>
         <td>37.11</td>
         <td>25.21</td>
-        <td>rgb + color + height</td>
+        <td>xyz + color + height</td>
     </tr>
     <tr>
         <td>Ours (pretrained 3DETR-m + GRU + vTransformer) </td>
-        <td><pre lang="shell">python script/train.py 
+        <td><pre lang="shell">python scripts/train.py 
         --use_color --use_chunking 
         --detection_module 3detr 
         --match_module transformer
         --use_pretrained 'folder' </pre></td>
         <td>37.08</td>
         <td>26.34</td>
-        <td>rgb + color + height</td>
+        <td>xyz + color + height</td>
     </tr>
 
 </table>
