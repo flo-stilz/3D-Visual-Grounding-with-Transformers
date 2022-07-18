@@ -49,7 +49,7 @@ We have implemented a chunking mechanism which significantly reduced the trainin
         <td>ScanRefer with pretrained VoteNet (optimized Baseline)</td>
         <td><pre lang="shell">python scripts/train.py 
         --use_color --use_chunking 
-        --use_pretrained pretrained_VoteNet 
+        --use_pretrained "pretrained_VoteNet" 
         --lr 1e-3 --batch_size 14</pre></td>
         <td>37.11</td>
         <td>25.21</td>
