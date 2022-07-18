@@ -64,7 +64,7 @@ We have implemented a chunking mechanism which significantly reduced the trainin
         --use_pretrained "pretrained_3DETR"
         --no_detection </pre></td>
         <td>37.08</td>
-        <td>26.34</td>
+        <td>26.56</td>
         <td>xyz + color + height</td>
     </tr>
 
