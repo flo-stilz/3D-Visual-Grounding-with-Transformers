@@ -43,7 +43,7 @@ We have implemented a chunking mechanism which significantly reduced the trainin
         --use_color --lr 1e-3 --batch_size 14</pre></td>
         <td>37.05</td>
         <td>23.93</td>
-        <td>rgb + color + height</td>
+        <td>xyz + color + height</td>
     </tr>
     <tr>
         <td>ScanRefer with pretrained VoteNet (optimized Baseline)</td>
@@ -53,7 +53,7 @@ We have implemented a chunking mechanism which significantly reduced the trainin
         --lr 1e-3 --batch_size 14</pre></td>
         <td>37.11</td>
         <td>25.21</td>
-        <td>rgb + color + height</td>
+        <td>xyz + color + height</td>
     </tr>
     <tr>
         <td>Ours (pretrained 3DETR-m + GRU + vTransformer) </td>
@@ -64,7 +64,7 @@ We have implemented a chunking mechanism which significantly reduced the trainin
         --use_pretrained 'folder' </pre></td>
         <td>37.08</td>
         <td>26.34</td>
-        <td>rgb + color + height</td>
+        <td>xyz + color + height</td>
     </tr>
 
 </table>
