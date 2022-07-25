@@ -5,7 +5,7 @@
 ## Introduction
 3D visual grounding is the task of localizing a target object in a 3D scene given a natural language description. This work focuses on developing a transformer architecture for bounding box prediction around a target object that is described by a natural language description.
 
-For additional detail, please see our paper:  
+For additional details, please see our paper:  
 "[3D Visual Grounding with Transformers](https://github.com/flo-stilz/3D-Visual-Grounding-with-Transformers/blob/lang-det/paper%20%26%20figures/final_submission_3D_visual_grounding_with_transformers.pdf)"  
 by [Stefan Frisch](https://github.com/ga92xug) and [Florian Stilz](https://github.com/flo-stilz/)
 from the [Technical University of Munich](https://www.tum.de/en/). 
