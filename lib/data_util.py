@@ -1,6 +1,6 @@
-from copy import deepcopy
 import json
 import os
+from argparse import Namespace
 from torch.utils.data import DataLoader
 import sys
 sys.path.append(os.path.join(os.getcwd())) # HACK add the root folder
@@ -10,9 +10,6 @@ from lib.config import CONF
 
 # constants
 DC = ScannetDatasetConfig()
-SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
-SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))
-
 
 def create_chunked_data(data: list, max_chunk_size: int):
     """
@@ -37,7 +34,15 @@ def create_chunked_data(data: list, max_chunk_size: int):
     data_chunked.append(new_scene)
     return data_chunked
 
-def get_scanrefer(args, num_scenes, max_chunk_size):
+def get_scanrefer(
+        args: Namespace, 
+        num_scenes: int, 
+        max_chunk_size: int,
+    ):
+    """
+    Get the ScanRefer data. If specified chunk the data based on objects in the same scene.
+    """
+
     scanrefer_train = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
     scanrefer_val = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))        
     
@@ -75,13 +80,28 @@ def get_scanrefer(args, num_scenes, max_chunk_size):
     # all scanrefer scene
     all_scene_list = train_scene_list + val_scene_list
     print(f"train on {len(filtered_scanrefer_train)} samples and val on {len(scanrefer_val)} samples")
-    return filtered_scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_chunked, scanrefer_val_chunked
+
+    scanrefer = {
+        "train": scanrefer_train,
+        "val": scanrefer_val
+    }
+    scanrefer_chunked = {
+        "train": scanrefer_train_chunked,
+        "val": scanrefer_val_chunked
+    }
+
+    return scanrefer, all_scene_list, scanrefer_chunked
     
 def get_scannet_scene_list(split):
     scene_list = sorted([line.rstrip() for line in open(os.path.join(CONF.PATH.SCANNET_META, "scannetv2_{}.txt".format(split)))])
     return scene_list
 
-def get_dataloader(args, split, config, augment):
+def get_dataloader(
+        args: Namespace, 
+        split: str, 
+        config: ScannetDatasetConfig, 
+        augment: bool = False
+        ):
     dataset = ScannetReferenceDataset(
         num_scenes=args.num_scenes,
         split=split, 

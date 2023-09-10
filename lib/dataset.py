@@ -1,8 +1,3 @@
-'''
-File Created: Monday, 25th November 2019 1:35:30 pm
-Author: Dave Zhenyu Chen (zhenyu.chen@tum.de)
-'''
-
 import os
 import sys
 import time
@@ -55,18 +50,8 @@ class ScannetReferenceDataset(Dataset):
         ):
         assert lang_module in ['gru', 'bert'], "lang_module must be 'gru' or 'bert'"
 
-        scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_chunked, scanrefer_val_chunked = get_scanrefer(num_scenes, max_chunk_size)
-        scanrefer = {
-            "train": scanrefer_train,
-            "val": scanrefer_val
-        }
-        scanrefer_chunked = {
-            "train": scanrefer_train_chunked,
-            "val": scanrefer_val_chunked
-        }
-
-        self.scanrefer = scanrefer
-        self.scanrefer_all_scene = all_scene_list # all scene_ids in scanrefer
+        self.scanrefer, self.scanrefer_all_scene, self.scanrefer_chunked = get_scanrefer(num_scenes, max_chunk_size)
+        
         self.split = split
         self.num_points = num_points
         self.use_color = use_color        
@@ -83,7 +68,6 @@ class ScannetReferenceDataset(Dataset):
         self.chunking = chunking
         self.max_chunk_size = max_chunk_size
 
-        self.scanrefer_chunked = scanrefer_chunked
         #language
         self.lang_module = lang_module
 
