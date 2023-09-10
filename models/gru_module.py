@@ -7,7 +7,7 @@ from models.transformer.attention import MultiHeadAttention
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-class LangModule(nn.Module):
+class GRUModule(nn.Module):
     def __init__(self, args, num_text_classes, use_lang_classifier=True, use_bidir=False, 
         emb_size=300, hidden_size=256, chunking=False):
         super().__init__() 
@@ -31,7 +31,9 @@ class LangModule(nn.Module):
             self.fc = nn.Linear(256, 128)
             self.dropout = nn.Dropout(p=.1)
             self.layer_norm = nn.LayerNorm(128)
-            self.mhatt = MultiHeadAttention(d_model=128, d_k=16, d_v=16, h=4, dropout=.1, identity_map_reordering=False,
+            self.mhatt = MultiHeadAttention(d_model=128, d_k=16, d_v=16, h=4, 
+                                            dropout=.1, 
+                                            identity_map_reordering=False,
                                             attention_module=None,
                                             attention_module_kwargs=None)
 

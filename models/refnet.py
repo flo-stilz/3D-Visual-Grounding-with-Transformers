@@ -8,7 +8,7 @@ sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from models.backbone_module import Pointnet2Backbone
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
-from models.lang_module import LangModule
+from models.gru_module import GRUModule
 from models.match_module import MatchModule
 from models.dvg_match_module import DVGMatchModule
 from models.Object_Detection import Object_Detection
@@ -69,7 +69,7 @@ class RefNet(nn.Module):
             # (including attention and language classification)
 
             if self.args.lang_module == 'gru':
-                self.lang_encoder = LangModule(self.args, num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.args)
+                self.lang_encoder = GRUModule(self.args, num_class, use_lang_classifier, use_bidir, emb_size, hidden_size, self.args)
             elif self.args.lang_module == 'bert':
                 self.lang_encoder = BERTModule(self.args, num_class, use_lang_classifier, hidden_size, self.args)
             else:

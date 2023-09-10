@@ -15,6 +15,7 @@ from datetime import datetime
 from copy import deepcopy
 
 sys.path.append(os.path.join(os.getcwd())) # HACK add the root folder
+from lib.data_util import get_dataloader
 from data.scannet.model_util_scannet import ScannetDatasetConfig
 from lib.dataset import ScannetReferenceDataset
 from lib.solver import Solver
@@ -25,32 +26,7 @@ from models.Object_Detection import Object_Detection
 from scripts.utils.AdamW import AdamW
 from scripts.utils.script_utils import set_params_lr_dict
 
-SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
-SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))
-
-# constants
 DC = ScannetDatasetConfig()
-
-def get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, split, config, augment):
-    dataset = ScannetReferenceDataset(
-        scanrefer=scanrefer[split],
-        scanrefer_new = scanrefer_new[split] if args.use_chunking else None,
-        scanrefer_all_scene=all_scene_list, 
-        split=split, 
-        num_points=args.num_points, 
-        use_height=(not args.no_height),
-        use_color=args.use_color, 
-        use_normal=args.use_normal, 
-        use_multiview=args.use_multiview,
-        #chunking
-        chunking = args.use_chunking,
-        lang_num_max=args.lang_num_max,
-        # language module
-        lang_module = args.lang_module
-    )
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
-
-    return dataset, dataloader
 
 def get_model(args):
     # initiate model
@@ -335,106 +311,6 @@ def save_info(args, root, num_params, train_dataset, val_dataset):
         json.dump(info, f, indent=4)
 
 
-
-def get_scannet_scene_list(split):
-    scene_list = sorted([line.rstrip() for line in open(os.path.join(CONF.PATH.SCANNET_META, "scannetv2_{}.txt".format(split)))])
-
-    return scene_list
-
-
-def get_scanrefer(scanrefer_train, scanrefer_val, num_scenes, lang_num_max):
-    if args.no_reference:
-        train_scene_list = get_scannet_scene_list("train")
-        new_scanrefer_train = []
-        for scene_id in train_scene_list:
-            data = deepcopy(SCANREFER_TRAIN[0])
-            data["scene_id"] = scene_id
-            new_scanrefer_train.append(data)
-
-        val_scene_list = get_scannet_scene_list("val")
-        new_scanrefer_val = []
-        for scene_id in val_scene_list:
-            data = deepcopy(SCANREFER_VAL[0])
-            data["scene_id"] = scene_id
-            new_scanrefer_val.append(data)
-        
-    else:
-        # get initial scene list
-        train_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_train])))
-        val_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_val])))
-        if num_scenes == -1: 
-            num_scenes = len(train_scene_list)
-        else:
-            assert len(train_scene_list) >= num_scenes
-        
-        # slice train_scene_list
-        train_scene_list = train_scene_list[:num_scenes]
-
-        if args.use_chunking:
-            # filter data in chosen scenes
-            new_scanrefer_train = []
-            scanrefer_train_new = []
-            scanrefer_train_new_scene = []
-            scene_id = ""
-            for data in scanrefer_train:
-                if data["scene_id"] in train_scene_list:
-                    new_scanrefer_train.append(data)
-                    if scene_id != data["scene_id"]:
-                        scene_id = data["scene_id"]
-                        if len(scanrefer_train_new_scene) > 0:
-                            scanrefer_train_new.append(scanrefer_train_new_scene)
-                        scanrefer_train_new_scene = []
-                    if len(scanrefer_train_new_scene) >= lang_num_max:
-                        scanrefer_train_new.append(scanrefer_train_new_scene)
-                        scanrefer_train_new_scene = []
-                    scanrefer_train_new_scene.append(data)
-                    """
-                    if data["scene_id"] not in scanrefer_train_new:
-                        scanrefer_train_new[data["scene_id"]] = []
-                    scanrefer_train_new[data["scene_id"]].append(data)
-                    """
-            scanrefer_train_new.append(scanrefer_train_new_scene)
-
-            new_scanrefer_val = scanrefer_val
-            scanrefer_val_new = []
-            scanrefer_val_new_scene = []
-            scene_id = ""
-            for data in scanrefer_val:
-                if scene_id != data["scene_id"]:
-                    scene_id = data["scene_id"]
-                    if len(scanrefer_val_new_scene) > 0:
-                        scanrefer_val_new.append(scanrefer_val_new_scene)
-                    scanrefer_val_new_scene = []
-                if len(scanrefer_val_new_scene) >= lang_num_max:
-                    scanrefer_val_new.append(scanrefer_val_new_scene)
-                    scanrefer_val_new_scene = []
-                scanrefer_val_new_scene.append(data)
-            scanrefer_val_new.append(scanrefer_val_new_scene)
-        else:
-        # filter data in chosen scenes
-            new_scanrefer_train = []
-            for data in scanrefer_train:
-                if data["scene_id"] in train_scene_list:
-                    new_scanrefer_train.append(data)
-
-            new_scanrefer_val = scanrefer_val
-
-    if args.use_chunking:
-        print("scanrefer_train_new", len(scanrefer_train_new), len(scanrefer_val_new), len(scanrefer_train_new[0]))  # 4819 1253 8
-        sum = 0
-        for i in range(len(scanrefer_train_new)):
-            sum += len(scanrefer_train_new[i])
-        print("training sample numbers", sum)  # 36665
-        # all scanrefer scene
-        all_scene_list = train_scene_list + val_scene_list
-        print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))  # 36665 9508
-        return new_scanrefer_train, new_scanrefer_val, all_scene_list, scanrefer_train_new, scanrefer_val_new
-    else:
-        # all scanrefer scene
-        all_scene_list = train_scene_list + val_scene_list
-        print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))
-        return new_scanrefer_train, new_scanrefer_val, all_scene_list
-
 def write_string_summary_v2(writer, s):
     with writer.as_default():
         tf.summary.text('Model configuration', s, step=0)
@@ -454,47 +330,18 @@ def get_summary_str(args, weight_dict):
 def train(args):
     # init training dataset
     print("preparing data...")
-    
-    if args.use_chunking:
-        scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_new, scanrefer_val_new = get_scanrefer(
-        SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
-        scanrefer = {
-            "train": scanrefer_train,
-            "val": scanrefer_val
-        }
-        scanrefer_new = {
-            "train": scanrefer_train_new,
-            "val": scanrefer_val_new
-        }
-
-        # dataloader
-        train_dataset, train_dataloader = get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, "train", DC, augment=True)
-        val_dataset, val_dataloader = get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, "val", DC, augment=False)
-        dataloader = {
-            "train": train_dataloader,
-            "val": val_dataloader
-        }
-    else:
-        scanrefer_train, scanrefer_val, all_scene_list = get_scanrefer(SCANREFER_TRAIN, SCANREFER_VAL, args.num_scenes, args.lang_num_max)
-        scanrefer = {
-            "train": scanrefer_train,
-            "val": scanrefer_val
-        }
-
-        # dataloader
-        train_dataset, train_dataloader = get_dataloader(args, scanrefer, None, all_scene_list, "train", DC, True)
-        val_dataset, val_dataloader = get_dataloader(args, scanrefer, None, all_scene_list, "val", DC, False)
-        dataloader = {
-            "train": train_dataloader,
-            "val": val_dataloader
-        }
+    train_dataset, train_dataloader = get_dataloader(args, "train", DC, augment=True)
+    val_dataset, val_dataloader = get_dataloader(args, "val", DC, augment=False)
+    dataloader = {
+        "train": train_dataloader,
+        "val": val_dataloader
+    }
 
     print("initializing...")
     solver, num_params, root = get_solver(args, dataloader)
     print("Parameters: " + str(num_params/1000000)+" mil to train")
 
     print("Start training...\n")
-
     save_info(args, root, num_params, train_dataset, val_dataset)
     solver(args.epoch, args.verbose)
 
@@ -525,7 +372,7 @@ if __name__ == "__main__":
     parser.add_argument("--use_checkpoint", type=str, help="Specify the checkpoint root", default="")
     #chunking
     parser.add_argument("--use_chunking", action="store_true", help="Chunking")
-    parser.add_argument("--lang_num_max", type=int, help="lang num max", default=8)
+    parser.add_argument("--max_chunk_size", type=int, help="max number of descriptions in one chunk", default=8)
     #language module
     parser.add_argument("--lang_module", type=str, default='gru', help="Language modules: gru, bert")
     parser.add_argument("--lr_bert", type=float, help="learning rate for bert", default=5e-5)

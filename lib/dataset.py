@@ -14,6 +14,8 @@ import multiprocessing as mp
 from torch.utils.data import Dataset
 import torch
 
+from lib.data_util import get_scanrefer
+
 sys.path.append(os.path.join(os.getcwd(), "lib")) # HACK add the lib folder
 from lib.config import CONF
 from utils.pc_utils import random_sampling, rotx, roty, rotz
@@ -34,24 +36,37 @@ MULTIVIEW_DATA = CONF.MULTIVIEW
 GLOVE_PICKLE = os.path.join(CONF.PATH.DATA, "glove.p")
 
 class ScannetReferenceDataset(Dataset):
-       
-    def __init__(self, scanrefer, scanrefer_new, scanrefer_all_scene, 
-        split="train", 
-        num_points=40000,
-        use_height=False, 
-        use_color=False, 
-        use_normal=False, 
-        use_multiview=False, 
-        augment=False,
+    def __init__(
+        self, 
+        num_scenes: int = -1,
+        split: str = "train", 
+        num_points: int = 40000,
+
+        use_height: bool = False,
+        use_color: bool = False,
+        use_normal: bool = False,
+        use_multiview: bool = False,
+        augment: bool = False,
         # for chunking
-        chunking=False,
-        lang_num_max=32,
-        shuffle=False,
-        lang_module = 'gru'
+        chunking: bool = False,
+        max_chunk_size: int = 32,
+        shuffle: bool = False,
+        lang_module: str = 'gru',
         ):
+        assert lang_module in ['gru', 'bert'], "lang_module must be 'gru' or 'bert'"
+
+        scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_chunked, scanrefer_val_chunked = get_scanrefer(num_scenes, max_chunk_size)
+        scanrefer = {
+            "train": scanrefer_train,
+            "val": scanrefer_val
+        }
+        scanrefer_chunked = {
+            "train": scanrefer_train_chunked,
+            "val": scanrefer_val_chunked
+        }
 
         self.scanrefer = scanrefer
-        self.scanrefer_all_scene = scanrefer_all_scene # all scene_ids in scanrefer
+        self.scanrefer_all_scene = all_scene_list # all scene_ids in scanrefer
         self.split = split
         self.num_points = num_points
         self.use_color = use_color        
@@ -66,8 +81,9 @@ class ScannetReferenceDataset(Dataset):
         self.dataset_config = DC
         # chunking
         self.chunking = chunking
-        self.lang_num_max = lang_num_max
-        self.scanrefer_new = scanrefer_new
+        self.max_chunk_size = max_chunk_size
+
+        self.scanrefer_chunked = scanrefer_chunked
         #language
         self.lang_module = lang_module
 
@@ -77,16 +93,16 @@ class ScannetReferenceDataset(Dataset):
        
     def __len__(self):
         if self.chunking:
-            return len(self.scanrefer_new)
+            return len(self.scanrefer_chunked)
         else:
             return len(self.scanrefer)
 
     def __getitem__(self, idx):
         start = time.time()
-
+        
         if self.chunking:
-            lang_num = len(self.scanrefer_new[idx])
-            scene_id = self.scanrefer_new[idx][0]["scene_id"]
+            objects_in_scene = len(self.scanrefer_chunked[idx])
+            scene_id = self.scanrefer_chunked[idx][0]["scene_id"]
 
             object_id_list = []
             object_name_list = []
@@ -95,39 +111,23 @@ class ScannetReferenceDataset(Dataset):
             lang_feat_list = []
             lang_len_list = []
 
-            # Bert
-            #data_dict["lang_inputs_list"] = torch.tensor(lang_feat['input_ids'])
-            #data_dict["lang_mask_list"] = torch.tensor(lang_feat['attention_mask'])
-
             lang_inputs_list = []
             lang_mask_list = []
 
-            # main_lang_feat_list = []
-            # main_lang_len_list = []
-            # first_obj_list = []
-            # unk_list = []
-
-            for i in range(self.lang_num_max):
-                if i < lang_num:
-                    object_id = int(self.scanrefer_new[idx][i]["object_id"])
-                    object_name = " ".join(self.scanrefer_new[idx][i]["object_name"].split("_"))
-                    ann_id = self.scanrefer_new[idx][i]["ann_id"]
+            for i in range(self.max_chunk_size):
+                if i < objects_in_scene:
+                    object_id = int(self.scanrefer_chunked[idx][i]["object_id"])
+                    object_name = " ".join(self.scanrefer_chunked[idx][i]["object_name"].split("_"))
+                    ann_id = self.scanrefer_chunked[idx][i]["ann_id"]
 
                     if self.lang_module == 'gru':
                         lang_feat = self.lang[scene_id][str(object_id)][ann_id]
-                        lang_len = len(self.scanrefer_new[idx][i]["token"])
+                        lang_len = len(self.scanrefer_chunked[idx][i]["token"])
                         lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN else CONF.TRAIN.MAX_DES_LEN
                     elif self.lang_module == 'bert':
                         lang_feat = self.lang[scene_id][str(object_id)][ann_id]
-                        lang_len = len(self.scanrefer_new[idx][i]["token"]) + 2
+                        lang_len = len(self.scanrefer_chunked[idx][i]["token"]) + 2
                         lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN + 2 else CONF.TRAIN.MAX_DES_LEN + 2
-                    else:
-                        AssertionError
-
-                    # main_lang_feat = self.lang_main[scene_id][str(object_id)][ann_id]["main"]
-                    # main_lang_len = self.lang_main[scene_id][str(object_id)][ann_id]["len"]
-                    # first_obj = self.lang_main[scene_id][str(object_id)][ann_id]["first_obj"]
-                    # unk = self.lang_main[scene_id][str(object_id)][ann_id]["unk"]
 
                 object_id_list.append(object_id)
                 object_name_list.append(object_name)
@@ -139,14 +139,7 @@ class ScannetReferenceDataset(Dataset):
                 elif self.lang_module == 'bert':
                     lang_inputs_list.append(lang_feat['input_ids'])
                     lang_mask_list.append(lang_feat['attention_mask'])                    
-                else:
-                    AssertionError
-
-                # main_lang_feat_list.append(main_lang_feat)
-                # main_lang_len_list.append(main_lang_len)
-                # first_obj_list.append(first_obj)
-                # unk_list.append(unk)
-
+                    
         else:
             scene_id = self.scanrefer[idx]["scene_id"]
             object_id = int(self.scanrefer[idx]["object_id"])
@@ -156,15 +149,12 @@ class ScannetReferenceDataset(Dataset):
             # get language features
             lang_feat = self.lang[scene_id][str(object_id)][ann_id]
             
-
             if self.lang_module == 'gru':
                 lang_len = len(self.scanrefer[idx]["token"])
                 lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN else CONF.TRAIN.MAX_DES_LEN
             elif self.lang_module == 'bert': 
                 lang_len = len(self.scanrefer[idx]["token"]) + 2
                 lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN + 2 else CONF.TRAIN.MAX_DES_LEN + 2
-            else:
-                AssertionError
 
         # get pc
         mesh_vertices = self.scene_data[scene_id]["mesh_vertices"]
@@ -271,7 +261,6 @@ class ScannetReferenceDataset(Dataset):
                 # Translation
                 point_cloud, target_bboxes = self._translate(point_cloud, target_bboxes)
                 
-            
             # 3DETR addition:
             raw_sizes = target_bboxes[:, 3:6]
             # dims added:
@@ -326,8 +315,9 @@ class ScannetReferenceDataset(Dataset):
             size_residuals[0:num_bbox, :] = target_bboxes[0:num_bbox, 3:6] - DC.mean_size_arr[class_ind,:]
 
             if self.chunking:
-                # construct the reference target label for each bbox
-                for j in range(self.lang_num_max):
+                # construct the reference target label for each bbox and add to list
+                for j in range(self.max_chunk_size):
+                    # construct the reference target label for each bbox
                     ref_box_label = np.zeros(MAX_NUM_OBJ)
                     for i, gt_id in enumerate(instance_bboxes[:num_bbox, -1]):
                         if gt_id == object_id_list[j]:
@@ -337,8 +327,7 @@ class ScannetReferenceDataset(Dataset):
                             ref_heading_residual_label = angle_residuals[i]
                             ref_size_class_label = size_classes[i]
                             ref_size_residual_label = size_residuals[i]
-
-                            ref_box_label_list.append(ref_box_label)
+                         
                             ref_center_label_list.append(ref_center_label)
                             ref_heading_class_label_list.append(ref_heading_class_label)
                             ref_heading_residual_label_list.append(ref_heading_residual_label)
@@ -365,52 +354,31 @@ class ScannetReferenceDataset(Dataset):
             target_bboxes_semcls[0:num_bbox] = [DC.nyu40id2class[int(x)] for x in instance_bboxes[:,-2][0:num_bbox]]
         except KeyError:
             pass
+
+        data_dict = {}
         
 
         if self.chunking:
             object_cat_list = []
-            for i in range(self.lang_num_max):
+            for i in range(self.max_chunk_size):
                 object_cat = self.raw2label[object_name_list[i]] if object_name_list[i] in self.raw2label else 17
                 object_cat_list.append(object_cat)
 
-            istrain = 0
-            if self.split == "train":
-                istrain = 1
-
-            data_dict = {}
-            data_dict["point_clouds"] = point_cloud.astype(np.float32) # point cloud data including features
-            # data_dict["unk"] = unk.astype(np.float32)
-
-            data_dict["istrain"] = istrain
-            data_dict["center_label"] = target_bboxes.astype(np.float32)[:,0:3] # (MAX_NUM_OBJ, 3) for GT box center XYZ
-            data_dict["heading_class_label"] = angle_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
-            data_dict["heading_residual_label"] = angle_residuals.astype(np.float32) # (MAX_NUM_OBJ,)
-            data_dict["size_class_label"] = size_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
-            data_dict["size_residual_label"] = size_residuals.astype(np.float32) # (MAX_NUM_OBJ, 3)
-            data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
-            data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
-            data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
-            data_dict["vote_label"] = point_votes.astype(np.float32)
-            data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
-            data_dict["scan_idx"] = np.array(idx).astype(np.int64)
-            data_dict["pcl_color"] = pcl_color
-
-            data_dict["load_time"] = time.time() - start
-
-            data_dict["lang_num"] = np.array(lang_num).astype(np.int64)
+            unique_multiple_list = []
+            for i in range(self.max_chunk_size):
+                object_id = object_id_list[i]
+                ann_id = ann_id_list[i]
+                unique_multiple = self.unique_multiple_lookup[scene_id][str(object_id)][ann_id]
+                unique_multiple_list.append(unique_multiple)
 
             if self.lang_module == 'gru':
                 data_dict["lang_feat_list"] = np.array(lang_feat_list).astype(np.float32)  # language feature vectors
                 data_dict["lang_len_list"] = np.array(lang_len_list).astype(np.int64)  # length of each description
-            else:
-            # Bert
+            elif self.lang_module == 'bert':
                 data_dict["lang_inputs_list"] = torch.tensor(lang_inputs_list)
                 data_dict["lang_mask_list"] = torch.tensor(lang_mask_list)
 
-            # data_dict["main_lang_feat_list"] = np.array(main_lang_feat_list).astype(np.float32)  # main language feature vectors
-            # data_dict["main_lang_len_list"] = np.array(main_lang_len_list).astype(np.int64)  # length of each main description
-            # data_dict["first_obj_list"] = np.array(first_obj_list).astype(np.int64)
-            # data_dict["unk_list"] = np.array(unk_list).astype(np.float32)
+            data_dict["lang_num"] = np.array(objects_in_scene).astype(np.int64)
             data_dict["ref_box_label_list"] = np.array(ref_box_label_list).astype(np.int64)  # 0/1 reference labels for each object bbox
             data_dict["ref_center_label_list"] = np.array(ref_center_label_list).astype(np.float32)
             data_dict["ref_heading_class_label_list"] = np.array(ref_heading_class_label_list).astype(np.int64)
@@ -420,58 +388,17 @@ class ScannetReferenceDataset(Dataset):
             data_dict["object_id_list"] = np.array(object_id_list).astype(np.int64)
             data_dict["ann_id_list"] = np.array(ann_id_list).astype(np.int64)
             data_dict["object_cat_list"] = np.array(object_cat_list).astype(np.int64)
-            
-            data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
-            data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
-            data_dict["gt_box_corners"] = box_corners.astype(np.float32)
-            data_dict["gt_box_centers"] = box_centers.astype(np.float32)
-            data_dict["gt_box_centers_normalized"] = box_centers_normalized.astype(np.float32)
-            data_dict["gt_angle_class_label"] = angle_classes.astype(np.int64)
-            data_dict["gt_angle_residual_label"] = angle_residuals.astype(np.float32)
-            data_dict["gt_box_sem_cls_label"] = target_bboxes_semcls.astype(np.int64)
-            data_dict["gt_box_present"] = target_bboxes_mask.astype(np.float32)
-            data_dict["gt_box_sizes"] = raw_sizes.astype(np.float32)
-            data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
-            data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
-
-            unique_multiple_list = []
-            for i in range(self.lang_num_max):
-                object_id = object_id_list[i]
-                ann_id = ann_id_list[i]
-                unique_multiple = self.unique_multiple_lookup[scene_id][str(object_id)][ann_id]
-                unique_multiple_list.append(unique_multiple)
             data_dict["unique_multiple_list"] = np.array(unique_multiple_list).astype(np.int64)
         else:
-
             object_cat = self.raw2label[object_name] if object_name in self.raw2label else 17
-
-            data_dict = {}
-            data_dict["point_clouds"] = point_cloud.astype(np.float32) # point cloud data including features
-            # data_dict["lang_feat"] = lang_feat.astype(np.float32) # language feature vectors
 
             if self.lang_module == 'gru':
                 data_dict["lang_feat"] = lang_feat.astype(np.float32) # language feature vectors
                 data_dict["lang_len"] = np.array(lang_len).astype(np.int64) # length of each description
-            else:
-            # Bert
+            elif self.lang_module == 'gru':
                 data_dict["lang_inputs"] = torch.tensor(lang_feat['input_ids'])
                 data_dict["lang_mask"] = torch.tensor(lang_feat['attention_mask'])
             
-
-            # data_dict["lang_len"] = np.array(lang_len).astype(np.int64) # length of each description
-            data_dict["center_label"] = target_bboxes.astype(np.float32)[:,0:3] # (MAX_NUM_OBJ, 3) for GT box center XYZ
-            data_dict["heading_class_label"] = angle_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
-            data_dict["heading_residual_label"] = angle_residuals.astype(np.float32) # (MAX_NUM_OBJ,)
-            data_dict["size_class_label"] = size_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
-            data_dict["size_residual_label"] = size_residuals.astype(np.float32) # (MAX_NUM_OBJ, 3)
-            data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
-            data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
-            data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
-            data_dict["vote_label"] = point_votes.astype(np.float32)
-            data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
-            data_dict["scan_idx"] = np.array(idx).astype(np.int64)
-            data_dict["pcl_color"] = pcl_color
-
             data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
             data_dict["ref_box_label"] = ref_box_label.astype(np.int64) # 0/1 reference labels for each object bbox
             data_dict["ref_center_label"] = ref_center_label.astype(np.float32)
@@ -484,23 +411,36 @@ class ScannetReferenceDataset(Dataset):
             data_dict["object_cat"] = np.array(object_cat).astype(np.int64)
             data_dict["unique_multiple"] = np.array(self.unique_multiple_lookup[scene_id][str(object_id)][ann_id]).astype(np.int64)
             
-            data_dict["pcl_color"] = pcl_color
-            data_dict["load_time"] = time.time() - start
-            # 3DETR addition:
-            
-            data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
-            data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
-            data_dict["gt_box_corners"] = box_corners.astype(np.float32)
-            data_dict["gt_box_centers"] = box_centers.astype(np.float32)
-            data_dict["gt_box_centers_normalized"] = box_centers_normalized.astype(np.float32)
-            data_dict["gt_angle_class_label"] = angle_classes.astype(np.int64)
-            data_dict["gt_angle_residual_label"] = angle_residuals.astype(np.float32)
-            data_dict["gt_box_sem_cls_label"] = target_bboxes_semcls.astype(np.int64)
-            data_dict["gt_box_present"] = target_bboxes_mask.astype(np.float32)
-            data_dict["gt_box_sizes"] = raw_sizes.astype(np.float32)
-            data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
-            data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
-            
+        # chunking and normal
+        data_dict["point_clouds"] = point_cloud.astype(np.float32) # point cloud data including features
+        data_dict["center_label"] = target_bboxes.astype(np.float32)[:,0:3] # (MAX_NUM_OBJ, 3) for GT box center XYZ
+        data_dict["heading_class_label"] = angle_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_HEADING_BIN-1
+        data_dict["heading_residual_label"] = angle_residuals.astype(np.float32) # (MAX_NUM_OBJ,)
+        data_dict["size_class_label"] = size_classes.astype(np.int64) # (MAX_NUM_OBJ,) with int values in 0,...,NUM_SIZE_CLUSTER
+        data_dict["size_residual_label"] = size_residuals.astype(np.float32) # (MAX_NUM_OBJ, 3)
+        data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
+        data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
+        data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
+        data_dict["vote_label"] = point_votes.astype(np.float32)
+        data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
+        data_dict["scan_idx"] = np.array(idx).astype(np.int64)
+        data_dict["pcl_color"] = pcl_color
+        data_dict["istrain"] = 1 if self.split == "train" else 0
+        # 3DETR addition:
+        data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
+        data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
+        data_dict["gt_box_corners"] = box_corners.astype(np.float32)
+        data_dict["gt_box_centers"] = box_centers.astype(np.float32)
+        data_dict["gt_box_centers_normalized"] = box_centers_normalized.astype(np.float32)
+        data_dict["gt_angle_class_label"] = angle_classes.astype(np.int64)
+        data_dict["gt_angle_residual_label"] = angle_residuals.astype(np.float32)
+        data_dict["gt_box_sem_cls_label"] = target_bboxes_semcls.astype(np.int64)
+        data_dict["gt_box_present"] = target_bboxes_mask.astype(np.float32)
+        data_dict["gt_box_sizes"] = raw_sizes.astype(np.float32)
+        data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
+        data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
+
+        data_dict["load_time"] = time.time() - start
         return data_dict
     
     def _get_raw2label(self):
