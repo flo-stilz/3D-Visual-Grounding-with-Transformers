@@ -114,20 +114,14 @@ class ScannetReferenceDataset(Dataset):
             lang_inputs_list = []
             lang_mask_list = []
 
-            for i in range(self.max_chunk_size):
-                if i < objects_in_scene:
-                    object_id = int(self.scanrefer_chunked[idx][i]["object_id"])
-                    object_name = " ".join(self.scanrefer_chunked[idx][i]["object_name"].split("_"))
-                    ann_id = self.scanrefer_chunked[idx][i]["ann_id"]
+            i = 0
+            while i < self.max_chunk_size and i < objects_in_scene:
+                object_id = int(self.scanrefer_chunked[idx][i]["object_id"])
+                object_name = " ".join(self.scanrefer_chunked[idx][i]["object_name"].split("_"))
+                ann_id = self.scanrefer_chunked[idx][i]["ann_id"]
 
-                    if self.lang_module == 'gru':
-                        lang_feat = self.lang[scene_id][str(object_id)][ann_id]
-                        lang_len = len(self.scanrefer_chunked[idx][i]["token"])
-                        lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN else CONF.TRAIN.MAX_DES_LEN
-                    elif self.lang_module == 'bert':
-                        lang_feat = self.lang[scene_id][str(object_id)][ann_id]
-                        lang_len = len(self.scanrefer_chunked[idx][i]["token"]) + 2
-                        lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN + 2 else CONF.TRAIN.MAX_DES_LEN + 2
+                lang_len = len(self.scanrefer_chunked[idx][i]["token"])
+                lang_feat, lang_len = self._get_lang_features_and_length(scene_id, object_id, ann_id, lang_len)
 
                 object_id_list.append(object_id)
                 object_name_list.append(object_name)
@@ -140,6 +134,7 @@ class ScannetReferenceDataset(Dataset):
                     lang_inputs_list.append(lang_feat['input_ids'])
                     lang_mask_list.append(lang_feat['attention_mask'])                    
                     
+                i += 1
         else:
             scene_id = self.scanrefer[idx]["scene_id"]
             object_id = int(self.scanrefer[idx]["object_id"])
@@ -147,14 +142,8 @@ class ScannetReferenceDataset(Dataset):
             ann_id = self.scanrefer[idx]["ann_id"]
             
             # get language features
-            lang_feat = self.lang[scene_id][str(object_id)][ann_id]
-            
-            if self.lang_module == 'gru':
-                lang_len = len(self.scanrefer[idx]["token"])
-                lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN else CONF.TRAIN.MAX_DES_LEN
-            elif self.lang_module == 'bert': 
-                lang_len = len(self.scanrefer[idx]["token"]) + 2
-                lang_len = lang_len if lang_len <= CONF.TRAIN.MAX_DES_LEN + 2 else CONF.TRAIN.MAX_DES_LEN + 2
+            lang_len = len(self.scanrefer[idx]["token"])
+            lang_feat, lang_len = self._get_lang_features_and_length(scene_id, object_id, ann_id, lang_len)
 
         # get pc
         mesh_vertices = self.scene_data[scene_id]["mesh_vertices"]
@@ -317,7 +306,6 @@ class ScannetReferenceDataset(Dataset):
             if self.chunking:
                 # construct the reference target label for each bbox and add to list
                 for j in range(self.max_chunk_size):
-                    # construct the reference target label for each bbox
                     ref_box_label = np.zeros(MAX_NUM_OBJ)
                     for i, gt_id in enumerate(instance_bboxes[:num_bbox, -1]):
                         if gt_id == object_id_list[j]:
@@ -357,7 +345,6 @@ class ScannetReferenceDataset(Dataset):
 
         data_dict = {}
         
-
         if self.chunking:
             object_cat_list = []
             for i in range(self.max_chunk_size):
@@ -442,6 +429,28 @@ class ScannetReferenceDataset(Dataset):
 
         data_dict["load_time"] = time.time() - start
         return data_dict
+    
+    def _get_lang_features_and_length(
+            self, 
+            scene_id: int, 
+            object_id: int, 
+            ann_id: int, 
+            lang_len: int
+        ):
+        """
+        get language features and adjusts the length. The language tokens 
+        (self.lang) are created in the _load_data() function.
+        """
+
+        lang_feat = self.lang[scene_id][str(object_id)][ann_id]
+        max_length = CONF.TRAIN.MAX_DES_LEN
+        # in bert we have to account for the CLS and SEP tokens
+        if self.lang_module == 'bert':
+            lang_len += 2
+            max_length += 2
+
+        lang_len = lang_len if lang_len <= max_length else max_length
+        return lang_feat, lang_len
     
     def _get_raw2label(self):
         # mapping
@@ -590,7 +599,7 @@ class ScannetReferenceDataset(Dataset):
         elif self.lang_module == 'bert':
             self.lang = self._tokenize_des_bert()
         else:
-            AssertionError
+            raise NotImplementedError(f"lang_module {self.lang_module} not implemented")
 
         # add scannet data
         self.scene_list = sorted(list(set([data["scene_id"] for data in self.scanrefer])))

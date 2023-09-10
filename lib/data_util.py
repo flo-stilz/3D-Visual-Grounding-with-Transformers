@@ -13,102 +13,73 @@ DC = ScannetDatasetConfig()
 SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
 SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))
 
+
+def create_chunked_data(data: list, max_chunk_size: int):
+    """
+    Create training data chunks for objects in the same scene.
+    The maximum number of objects in a chunk is max_chunk_size. 
+    Chunks can be smaller if there are less objects in a scene.
+    """
+    data_chunked = []
+    new_scene = []
+    scene_id = ""
+    for d in data:
+        if scene_id != d["scene_id"]:
+            scene_id = d["scene_id"]
+            if len(new_scene) > 0:
+                data_chunked.append(new_scene)
+            new_scene = []
+        if len(new_scene) >= max_chunk_size:
+            data_chunked.append(new_scene)
+            new_scene = []
+        new_scene.append(d)
+    
+    data_chunked.append(new_scene)
+    return data_chunked
+
+def get_scanrefer(args, num_scenes, max_chunk_size):
+    scanrefer_train = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
+    scanrefer_val = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))        
+    
+    # get initial scene list
+    train_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_train])))
+    val_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_val])))
+    if num_scenes == -1: 
+        num_scenes = len(train_scene_list)
+    else:
+        assert len(train_scene_list) >= num_scenes
+    
+    # slice train_scene_list
+    train_scene_list = train_scene_list[:num_scenes]
+
+    # filter data in chosen scenes
+    filtered_scanrefer_train = []
+    for data in scanrefer_train:
+        if data["scene_id"] in train_scene_list:
+            filtered_scanrefer_train.append(data)
+
+    if args.use_chunking:            
+        scanrefer_train_chunked = create_chunked_data(filtered_scanrefer_train, max_chunk_size)
+        scanrefer_val_chunked = create_chunked_data(scanrefer_val, max_chunk_size)
+
+        train_chunked_lengths = [len(chunk) for chunk in scanrefer_train_chunked]
+        val_chunked_lengths = [len(chunk) for chunk in scanrefer_val_chunked]
+
+        assert sum(train_chunked_lengths) == len(filtered_scanrefer_train), "Chunking error, train"
+        assert sum(val_chunked_lengths) == len(scanrefer_val), "Chunking error, val"
+        print("Size of chunked dataset", len(scanrefer_train_chunked), len(scanrefer_val_chunked), len(scanrefer_train_chunked[0]))  # 4819 1253 8
+    else:
+        scanrefer_train_chunked = None
+        scanrefer_val_chunked = None
+
+    # all scanrefer scene
+    all_scene_list = train_scene_list + val_scene_list
+    print(f"train on {len(filtered_scanrefer_train)} samples and val on {len(scanrefer_val)} samples")
+    return filtered_scanrefer_train, scanrefer_val, all_scene_list, scanrefer_train_chunked, scanrefer_val_chunked
+    
 def get_scannet_scene_list(split):
     scene_list = sorted([line.rstrip() for line in open(os.path.join(CONF.PATH.SCANNET_META, "scannetv2_{}.txt".format(split)))])
     return scene_list
-
-def get_scanrefer(args, num_scenes, max_chunk_size):
-    scanrefer_train = SCANREFER_TRAIN
-    scanrefer_val = SCANREFER_VAL
-
-    if args.no_reference:
-        train_scene_list = get_scannet_scene_list("train")
-        new_scanrefer_train = []
-        for scene_id in train_scene_list:
-            data = deepcopy(SCANREFER_TRAIN[0])
-            data["scene_id"] = scene_id
-            new_scanrefer_train.append(data)
-
-        val_scene_list = get_scannet_scene_list("val")
-        new_scanrefer_val = []
-        for scene_id in val_scene_list:
-            data = deepcopy(SCANREFER_VAL[0])
-            data["scene_id"] = scene_id
-            new_scanrefer_val.append(data)
-        
-    else:
-        # get initial scene list
-        train_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_train])))
-        val_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_val])))
-        if num_scenes == -1: 
-            num_scenes = len(train_scene_list)
-        else:
-            assert len(train_scene_list) >= num_scenes
-        
-        # slice train_scene_list
-        train_scene_list = train_scene_list[:num_scenes]
-
-        if args.use_chunking:
-            # filter data in chosen scenes
-            new_scanrefer_train = []
-            scanrefer_train_chunked = []
-            scanrefer_train_new_scene = []
-            scene_id = ""
-            for data in scanrefer_train:
-                if data["scene_id"] in train_scene_list:
-                    new_scanrefer_train.append(data)
-                    if scene_id != data["scene_id"]:
-                        scene_id = data["scene_id"]
-                        if len(scanrefer_train_new_scene) > 0:
-                            scanrefer_train_chunked.append(scanrefer_train_new_scene)
-                        scanrefer_train_new_scene = []
-                    if len(scanrefer_train_new_scene) >= max_chunk_size:
-                        scanrefer_train_chunked.append(scanrefer_train_new_scene)
-                        scanrefer_train_new_scene = []
-                    scanrefer_train_new_scene.append(data)
-                    
-            scanrefer_train_chunked.append(scanrefer_train_new_scene)
-
-            new_scanrefer_val = scanrefer_val
-            scanrefer_val_chunked = []
-            scanrefer_val_new_scene = []
-            scene_id = ""
-            for data in scanrefer_val:
-                if scene_id != data["scene_id"]:
-                    scene_id = data["scene_id"]
-                    if len(scanrefer_val_new_scene) > 0:
-                        scanrefer_val_chunked.append(scanrefer_val_new_scene)
-                    scanrefer_val_new_scene = []
-                if len(scanrefer_val_new_scene) >= max_chunk_size:
-                    scanrefer_val_chunked.append(scanrefer_val_new_scene)
-                    scanrefer_val_new_scene = []
-                scanrefer_val_new_scene.append(data)
-            scanrefer_val_chunked.append(scanrefer_val_new_scene)
-        else:
-        # filter data in chosen scenes
-            new_scanrefer_train = []
-            for data in scanrefer_train:
-                if data["scene_id"] in train_scene_list:
-                    new_scanrefer_train.append(data)
-
-            new_scanrefer_val = scanrefer_val
-
-    if args.use_chunking:
-        print("scanrefer_train_new", len(scanrefer_train_chunked), len(scanrefer_val_chunked), len(scanrefer_train_chunked[0]))  # 4819 1253 8
-        sum = 0
-        for i in range(len(scanrefer_train_chunked)):
-            sum += len(scanrefer_train_chunked[i])
-        print("training sample numbers", sum)  # 36665
-        # all scanrefer scene
-        all_scene_list = train_scene_list + val_scene_list
-        print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))  # 36665 9508
-        return new_scanrefer_train, new_scanrefer_val, all_scene_list, scanrefer_train_chunked, scanrefer_val_chunked
-    else:
-        # all scanrefer scene
-        all_scene_list = train_scene_list + val_scene_list
-        print("train on {} samples and val on {} samples".format(len(new_scanrefer_train), len(new_scanrefer_val)))
-        return new_scanrefer_train, new_scanrefer_val, all_scene_list
-    
 
 def get_dataloader(args, split, config, augment):
     dataset = ScannetReferenceDataset(
