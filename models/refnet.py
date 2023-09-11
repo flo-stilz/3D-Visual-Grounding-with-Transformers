@@ -9,11 +9,11 @@ from models.backbone_module import Pointnet2Backbone
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
 from models.gru_module import GRUModule
-from models.match_module import MatchModule
+from models.matching_modules.MLP import MatchModule
 from models.dvg_match_module import DVGMatchModule
 from models.Object_Detection import Object_Detection
 from models.BERT_module import BERTModule
-from models.vtrans_match_module import VTransMatchModule
+from models.matching_vtrans_module import VTransMatchModule
 
 class RefNet(nn.Module):
     def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, args,
@@ -40,18 +40,16 @@ class RefNet(nn.Module):
         
         # --------- Object Detection ------------
         if self.args.detection_module == "3detr":
-            self.Object_Detection = Object_Detection(input_feature_dim=self.input_feature_dim)
+            self.object_Detection = Object_Detection(
+                input_feature_dim=self.input_feature_dim)
             
-            self.Object_Feature_MLP = nn.Sequential( # convert box_features to transfer it to match module
+            self.object_Feature_MLP = nn.Sequential( # convert box_features to transfer it to match module
                     nn.Dropout(p=0.1),
                     nn.Linear(256, 128),
                     )
-            
-                    
-        # --------- PROPOSAL GENERATION ---------
-        # Backbone point feature learning
         elif self.args.detection_module == "votenet": 
-        
+            # --------- PROPOSAL GENERATION ---------
+            # Backbone point feature learning
             self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim)
     
             # Hough voting
@@ -61,7 +59,7 @@ class RefNet(nn.Module):
             self.proposal = ProposalModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal, sampling)
         
         else:
-            AssertionError 
+            ValueError(f"Detection module not recognized: {self.args.detection_module}") 
             
         if not no_reference:
             # --------- LANGUAGE ENCODING ---------
@@ -73,7 +71,7 @@ class RefNet(nn.Module):
             elif self.args.lang_module == 'bert':
                 self.lang_encoder = BERTModule(self.args, num_class, use_lang_classifier, hidden_size, self.args)
             else:
-                AssertionError
+                ValueError(f"Language module not recognized: {self.args.lang_module}")
 
             # --------- PROPOSAL MATCHING ---------
             # Match the generated proposals and select the most confident ones
@@ -85,8 +83,7 @@ class RefNet(nn.Module):
             elif self.args.match_module == "transformer":
                 self.match = VTransMatchModule(args=self.args,  num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
             else:
-                AssertionError
-            # self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size)
+                ValueError(f"Match module not recognized: {self.args.match_module}")
 
     def forward(self, data_dict):
         """ Forward pass of the network
@@ -115,18 +112,17 @@ class RefNet(nn.Module):
         
         # --------- 3DETR ----------------
         if self.args.detection_module == "3detr":
-            data_dict = self.Object_Detection(data_dict)
-            data_dict['aggregated_vote_features'] = self.Object_Feature_MLP(data_dict['aggregated_features'])
+            data_dict = self.object_Detection(data_dict)
+            data_dict['aggregated_vote_features'] = self.object_Feature_MLP(data_dict['aggregated_features'])
             # intermediate layer box features
             if self.args.int_layers:
                 for l in data_dict['aux_outputs']:
-                    l['box_features'] = self.Object_Feature_MLP(l['box_features'])
+                    l['box_features'] = self.object_Feature_MLP(l['box_features'])
                 
         elif self.args.detection_module == "votenet":
             # --------- HOUGH VOTING ---------
             data_dict = self.backbone_net(data_dict)
                     
-            # --------- HOUGH VOTING ---------
             xyz = data_dict["fp2_xyz"]
             features = data_dict["fp2_features"]
             data_dict["seed_inds"] = data_dict["fp2_inds"]
@@ -141,6 +137,7 @@ class RefNet(nn.Module):
     
             # --------- PROPOSAL GENERATION ---------
             data_dict = self.proposal(xyz, features, data_dict)
+
 
         if not self.no_reference:
             #######################################

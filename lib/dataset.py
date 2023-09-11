@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 import time
 import h5py
@@ -98,15 +99,16 @@ class ScannetReferenceDataset(Dataset):
             lang_inputs_list = []
             lang_mask_list = []
 
-            i = 0
-            while i < self.max_chunk_size and i < objects_in_scene:
-                object_id = int(self.scanrefer_chunked[idx][i]["object_id"])
-                object_name = " ".join(self.scanrefer_chunked[idx][i]["object_name"].split("_"))
-                ann_id = self.scanrefer_chunked[idx][i]["ann_id"]
+            for i in range(self.max_chunk_size):
+                if i < objects_in_scene:
+                    object_id = int(self.scanrefer_chunked[idx][i]["object_id"])
+                    object_name = " ".join(self.scanrefer_chunked[idx][i]["object_name"].split("_"))
+                    ann_id = self.scanrefer_chunked[idx][i]["ann_id"]
 
-                lang_len = len(self.scanrefer_chunked[idx][i]["token"])
-                lang_feat, lang_len = self._get_lang_features_and_length(scene_id, object_id, ann_id, lang_len)
+                    lang_len = len(self.scanrefer_chunked[idx][i]["token"])
+                    lang_feat, lang_len = self._get_lang_features_and_length(scene_id, object_id, ann_id, lang_len)
 
+                # if the objects in the scene is less than max_chunk_size, we pad the rest the last element
                 object_id_list.append(object_id)
                 object_name_list.append(object_name)
                 ann_id_list.append(ann_id)
@@ -411,6 +413,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
         data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
 
+        data_dict["random"] = random.random()
         data_dict["load_time"] = time.time() - start
         return data_dict
     

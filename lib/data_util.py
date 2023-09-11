@@ -1,3 +1,4 @@
+from copy import deepcopy
 import json
 import os
 from argparse import Namespace
@@ -22,11 +23,13 @@ def create_chunked_data(data: list, max_chunk_size: int):
     scene_id = ""
     for d in data:
         if scene_id != d["scene_id"]:
+            # when the scene changes, add the previous scene to the list
             scene_id = d["scene_id"]
             if len(new_scene) > 0:
                 data_chunked.append(new_scene)
             new_scene = []
         if len(new_scene) >= max_chunk_size:
+            # when the chunk is full, add it to the list
             data_chunked.append(new_scene)
             new_scene = []
         new_scene.append(d)
@@ -44,8 +47,8 @@ def get_scanrefer(
     """
 
     scanrefer_train = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
-    scanrefer_val = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json")))        
-    
+    scanrefer_val = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_val.json"))) 
+
     # get initial scene list
     train_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_train])))
     val_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer_val])))

@@ -115,12 +115,12 @@ def get_model(args):
                     break
                 break
             
-            model.Object_Detection = pretrained_model.Object_Detection
+            model.object_Detection = pretrained_model.object_Detection
             #print(model)
             
             if args.no_detection:
                 # freeze 3DETR
-                for param in model.Object_Detection.parameters():
+                for param in model.object_Detection.parameters():
                     param.requires_grad = False
                     
 
@@ -177,9 +177,9 @@ def get_solver(args, dataloader):
 
     elif args.detection_module=="3detr" and args.lang_module=="bert" and args.match_module =="dvg" and args.sep_optim:
         # det optim
-        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        detr_params = sum(p.numel() for p in model.object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
-        optimizer_det = get_optimizer(args, model.Object_Detection)
+        optimizer_det = get_optimizer(args, model.object_Detection)
         # lang optim
         lang_params = list(model.lang_encoder.parameters())
         optimizer_lang = optim.AdamW(lang_params, lr=args.lr_bert, weight_decay=args.bert_wd)
@@ -191,33 +191,33 @@ def get_solver(args, dataloader):
         l_params = sum(p.numel() for p in model.match.parameters())
         print(str(l_params/1000000) + " mil. parameters in Match module")
         # rest
-        rest_params = list(model.Object_Feature_MLP.parameters())
+        rest_params = list(model.object_Feature_MLP.parameters())
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
 
     elif args.detection_module=="3detr" and args.lang_module=="bert" and args.sep_optim:
         # 3detr optim
-        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        detr_params = sum(p.numel() for p in model.object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
-        optimizer_det = get_optimizer(args, model.Object_Detection)
+        optimizer_det = get_optimizer(args, model.object_Detection)
         # bert optim
         lang_params = list(model.lang_encoder.parameters())
         optimizer_lang = optim.AdamW(lang_params, lr=args.lr_bert, weight_decay=args.bert_wd)
         l_params = sum(p.numel() for p in model.lang_encoder.parameters())
         print(str(l_params/1000000) + " mil. parameters in Language module")
         # rest optim
-        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.match.parameters())
+        rest_params = list(model.object_Feature_MLP.parameters()) + list(model.match.parameters())
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
         optimizer_match = None
 
     elif args.detection_module == "3detr" and args.match_module == "scanrefer" and args.sep_optim:
-        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        detr_params = sum(p.numel() for p in model.object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
-        optimizer_det = get_optimizer(args, model.Object_Detection)
-        rest_params = list(model.Object_Feature_MLP.parameters()) + list(model.lang_encoder.parameters())+ list(model.match.parameters())
+        optimizer_det = get_optimizer(args, model.object_Detection)
+        rest_params = list(model.object_Feature_MLP.parameters()) + list(model.lang_encoder.parameters())+ list(model.match.parameters())
         other_params = sum(p.numel() for p in rest_params)
         print(str(other_params/1000000) + " mil. parameters for other modules")
         optimizer_main = optim.Adam(rest_params, lr=args.lr, weight_decay=args.wd)
@@ -225,7 +225,7 @@ def get_solver(args, dataloader):
         optimizer_match = None
     elif args.match_module != "scanrefer" and args.sep_optim:
         # 3detr param
-        detr_params = sum(p.numel() for p in model.Object_Detection.parameters())
+        detr_params = sum(p.numel() for p in model.object_Detection.parameters())
         print(str(detr_params/1000000) + " mil. parameters in Detection module")
         # dvg optim
         match_params = list(model.match.parameters())
