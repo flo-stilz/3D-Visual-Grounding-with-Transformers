@@ -80,13 +80,12 @@ class VTransMatchModule(nn.Module):
         lang_feat = data_dict["lang_emb"] # batch_size * len_nun_max, lang_size
         lang_feat = lang_feat.unsqueeze(1).repeat(1, self.num_proposals, 1) # batch_size * len_nun_max, num_proposals, lang_size
         
-
         if self.args.use_chunking:
             batchsize, chunk_size = data_dict['ref_center_label_list'].shape[:2]
         else:
             batchsize = data_dict['ref_center_label'].shape[0]
 
-        
+        # train with copy-paste augmentation
         if self.args.copy_paste:
             features = copy_paste(
                 data_dict=data_dict,

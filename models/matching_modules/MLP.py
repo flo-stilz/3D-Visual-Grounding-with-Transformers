@@ -28,10 +28,13 @@ class MatchModule(nn.Module):
         self.args = args
         self.num_proposals = num_proposals
         
+        # MLP fusion network
         self.fuse = nn.Sequential(
             nn.Conv1d(lang_size + 128, hidden_size, 1),
             nn.ReLU()
         )
+
+        # MLP matching network
         self.match = nn.Sequential(
             nn.Conv1d(hidden_size, hidden_size, 1),
             nn.ReLU(),

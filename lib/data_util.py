@@ -12,11 +12,18 @@ from lib.config import CONF
 # constants
 DC = ScannetDatasetConfig()
 
-def create_chunked_data(data: list, max_chunk_size: int):
+def create_chunked_data(data: list, max_chunk_size: int) -> list:
     """
     Create training data chunks for objects in the same scene.
     The maximum number of objects in a chunk is max_chunk_size. 
     Chunks can be smaller if there are less objects in a scene.
+
+    Args:
+    - data (list): List of dictionaries containing the data.
+    - max_chunk_size (int): Maximum number of objects in a chunk.
+
+    Returns:
+    - list: Data chunked into scences.
     """
     data_chunked = []
     new_scene = []
@@ -44,6 +51,16 @@ def get_scanrefer(
     ):
     """
     Get the ScanRefer data. If specified chunk the data based on objects in the same scene.
+
+    Args:
+    - args (Namespace): Arguments.
+    - num_scenes (int): Number of scenes to use. -1 all scence.
+    - max_chunk_size (int): Maximum number of objects in a chunk.
+
+    Returns:
+    - dict: ScanRefer data split into train val.
+    - list: All objects in the ScanRefer data validation and training.
+    - dict: ScanRefer data chunked into scenes. Split into train val. None if chunking is not used.
     """
 
     scanrefer_train = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
@@ -104,7 +121,11 @@ def get_dataloader(
         split: str, 
         config: ScannetDatasetConfig, 
         augment: bool = False
-        ):
+    ):
+    """
+    Create a dataloader for the ScanRefer dataset.
+    """
+
     dataset = ScannetReferenceDataset(
         num_scenes=args.num_scenes,
         split=split, 

@@ -92,19 +92,15 @@ class BERTModule(nn.Module):
         lang_last = bert_output[0] # last_hidden_state, pooler_output
         # output of CLS Token
         lang_last = lang_last[:,0]
-        #
+        # create language embeddings with MLP
         lang_emb = self.MLP(lang_last)
 
         # store the encoded language features
         data_dict["lang_emb"] = lang_emb # B (* chunk_size), hidden_size
             
-        # classify
+        # classify used for language loss
         if self.use_lang_classifier:
             data_dict["lang_scores"] = self.lang_cls(data_dict["lang_emb"])
-
-        # DVG fusion module
-        if self.args.match_module == 'dvg':
-            data_dict["attention_mask"] = None
 
         return data_dict
 
