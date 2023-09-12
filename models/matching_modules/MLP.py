@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from argparse import Namespace
 
 from .utils import (
     expand_object_features_mask, 
@@ -8,16 +9,27 @@ from .utils import (
 )
 
 class MatchModule(nn.Module):
-    def __init__(self, args, num_proposals=256, lang_size=256, hidden_size=128):
+    def __init__(
+            self, 
+            args: Namespace, 
+            num_proposals: int = 256, 
+            lang_size: int = 256, 
+            hidden_size: int = 128
+        ) -> None:
+        """
+        Args:
+        - args: config file
+        - num_proposals: number of proposals
+        - lang_size: size of language embeddings
+        - hidden_size: size of hidden layer
+        """
         super().__init__() 
 
         self.args = args
         self.num_proposals = num_proposals
-        self.lang_size = lang_size
-        self.hidden_size = hidden_size
         
         self.fuse = nn.Sequential(
-            nn.Conv1d(self.lang_size + 128, hidden_size, 1),
+            nn.Conv1d(lang_size + 128, hidden_size, 1),
             nn.ReLU()
         )
         self.match = nn.Sequential(
@@ -32,11 +44,15 @@ class MatchModule(nn.Module):
 
     def forward(self, data_dict):
         """
+        Forward pass of the MLP matching module.
+
         Args:
-            xyz: (B,K,3)
-            features: (B,C,K)
+        - data_dict (dict): A dictionary containing:
+            - xyz: (B,K,3)
+            - features: (B,C,K)
         Returns:
-            scores: (B,num_proposal,2+3+NH*2+NS*4) 
+        - dict: Modified input dictionary containing the following keys:
+            - scores: (B,num_proposal,2+3+NH*2+NS*4) 
         """
 
         # unpack outputs from detection branch

@@ -45,13 +45,13 @@ class ScannetReferenceDataset(Dataset):
         augment: bool = False,
         # for chunking
         chunking: bool = False,
-        max_chunk_size: int = 32,
+        chunk_size: int = 32,
         shuffle: bool = False,
         lang_module: str = 'gru',
         ):
         assert lang_module in ['gru', 'bert'], "lang_module must be 'gru' or 'bert'"
 
-        self.scanrefer, self.scanrefer_all_scene, self.scanrefer_chunked = get_scanrefer(num_scenes, max_chunk_size)
+        self.scanrefer, self.scanrefer_all_scene, self.scanrefer_chunked = get_scanrefer(num_scenes, chunk_size)
         
         self.split = split
         self.num_points = num_points
@@ -67,7 +67,7 @@ class ScannetReferenceDataset(Dataset):
         self.dataset_config = DC
         # chunking
         self.chunking = chunking
-        self.max_chunk_size = max_chunk_size
+        self.chunk_size = chunk_size
 
         #language
         self.lang_module = lang_module
@@ -99,7 +99,7 @@ class ScannetReferenceDataset(Dataset):
             lang_inputs_list = []
             lang_mask_list = []
 
-            for i in range(self.max_chunk_size):
+            for i in range(self.chunk_size):
                 if i < objects_in_scene:
                     object_id = int(self.scanrefer_chunked[idx][i]["object_id"])
                     object_name = " ".join(self.scanrefer_chunked[idx][i]["object_name"].split("_"))
@@ -108,7 +108,8 @@ class ScannetReferenceDataset(Dataset):
                     lang_len = len(self.scanrefer_chunked[idx][i]["token"])
                     lang_feat, lang_len = self._get_lang_features_and_length(scene_id, object_id, ann_id, lang_len)
 
-                # if the objects in the scene is less than max_chunk_size, we pad the rest the last element
+                # if the objects in the scene is less than chunk_size, 
+                # we pad the rest the last element
                 object_id_list.append(object_id)
                 object_name_list.append(object_name)
                 ann_id_list.append(ann_id)
@@ -291,7 +292,7 @@ class ScannetReferenceDataset(Dataset):
 
             if self.chunking:
                 # construct the reference target label for each bbox and add to list
-                for j in range(self.max_chunk_size):
+                for j in range(self.chunk_size):
                     ref_box_label = np.zeros(MAX_NUM_OBJ)
                     for i, gt_id in enumerate(instance_bboxes[:num_bbox, -1]):
                         if gt_id == object_id_list[j]:
@@ -333,12 +334,12 @@ class ScannetReferenceDataset(Dataset):
         
         if self.chunking:
             object_cat_list = []
-            for i in range(self.max_chunk_size):
+            for i in range(self.chunk_size):
                 object_cat = self.raw2label[object_name_list[i]] if object_name_list[i] in self.raw2label else 17
                 object_cat_list.append(object_cat)
 
             unique_multiple_list = []
-            for i in range(self.max_chunk_size):
+            for i in range(self.chunk_size):
                 object_id = object_id_list[i]
                 ann_id = ann_id_list[i]
                 unique_multiple = self.unique_multiple_lookup[scene_id][str(object_id)][ann_id]

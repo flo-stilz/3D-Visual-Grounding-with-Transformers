@@ -1,6 +1,3 @@
-import os
-import sys
-import torch
 import torch.nn as nn
 from argparse import Namespace
 
@@ -16,10 +13,18 @@ class BERTModule(nn.Module):
             self, 
             args: Namespace, 
             num_text_classes: int, 
-            use_lang_classifier:bool = True, 
-            hidden_size:int = 256, 
+            use_lang_classifier: bool = True, 
+            hidden_size: int = 256, 
             chunking: bool = False
         ) -> None:
+        """
+        Args:
+            - args: config file
+            - num_text_classes: number of text classes
+            - use_lang_classifier: whether the language classifier is getting trained
+            - hidden_size: size of hidden layer 
+            - chunking: whether the language input is chunked
+        """
         super().__init__() 
 
         self.args = args
@@ -70,6 +75,7 @@ class BERTModule(nn.Module):
             lang_mask_list = data_dict["lang_mask_list"]
 
             # reshape to batch_size * len_nun_max, max_des_len
+            # can be applied since all chunks have the same size
             batch_size, len_nun_max, max_des_len = lang_inputs_list.shape[:3]
             lang_input = lang_inputs_list.reshape(batch_size * len_nun_max, max_des_len) 
             lang_mask = lang_mask_list.reshape(batch_size * len_nun_max, max_des_len) 
@@ -77,15 +83,20 @@ class BERTModule(nn.Module):
             lang_input = data_dict['lang_inputs']
             lang_mask = data_dict['lang_mask']
      
-        # encode the language features
-        pooled_output = self.bert(input_ids=lang_input, attention_mask=lang_mask,return_dict=False)
-        lang_last = pooled_output[0]
+        # encode the language features with Bert
+        bert_output = self.bert(
+            input_ids=lang_input, 
+            attention_mask=lang_mask,
+            return_dict=False
+        )
+        lang_last = bert_output[0] # last_hidden_state, pooler_output
         # output of CLS Token
         lang_last = lang_last[:,0]
-        lang_last = self.MLP(lang_last)
+        #
+        lang_emb = self.MLP(lang_last)
 
         # store the encoded language features
-        data_dict["lang_emb"] = lang_last # B (* len_nun_max), hidden_size
+        data_dict["lang_emb"] = lang_emb # B (* chunk_size), hidden_size
             
         # classify
         if self.use_lang_classifier:

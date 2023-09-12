@@ -116,7 +116,7 @@ def get_dataloader(
         augment=augment,
         #chunking
         chunking = args.use_chunking,
-        max_chunk_size=args.max_chunk_size,
+        chunk_size=args.max_chunk_size,
         # language module
         lang_module = args.lang_module
     )

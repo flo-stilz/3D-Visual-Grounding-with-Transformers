@@ -4,17 +4,25 @@ import torch.nn as nn
 def expand_object_features_mask(
         features: torch.Tensor, 
         objectness_masks: torch.Tensor, 
-        max_chunk_size: int, 
-    ):
+        chunk_size: int, 
+    ) -> tuple:
     """
     Expand the features and objectness masks to match the chunked language features.
+
+    Args:
+    - features (tensor): Object features.
+    - objectness_masks (tensor): Objectness masks.
+    - chunk_size (int): Language chunk size.
+
+    Returns:
+    - tuple: Expanded features and objectness masks.
     """
-    features = features.unsqueeze(1).repeat(1, max_chunk_size, 1, 1)
+    features = features.unsqueeze(1).repeat(1, chunk_size, 1, 1)
     batchsize, _, d3, d4 = features.shape[:4]
-    features = features.reshape(batchsize * max_chunk_size, d3, d4)
+    features = features.reshape(batchsize * chunk_size, d3, d4)
     objectness_masks = objectness_masks.unsqueeze(1)\
-        .repeat(1, max_chunk_size, 1, 1)\
-        .reshape(batchsize * max_chunk_size, d3, 1)
+        .repeat(1, chunk_size, 1, 1)\
+        .reshape(batchsize * chunk_size, d3, 1)
     return features, objectness_masks
 
 
@@ -24,9 +32,22 @@ def fuse_objmask_match(
         features: torch.Tensor, 
         lang_feat: torch.Tensor,
         objectness_masks: torch.Tensor
-    ):
+    ) -> torch.Tensor:
     """
-    Fuse object features and language features, then match them.
+    Concat object features and language features and then combine the information with the fusion network.
+    The size of the fused features is (batch_size, num_proposals, object_feature_size + lang_size).
+    Apply objectness masks to the fused features to mask out invalid proposals.
+    Finally, compute confidence scores the a box belongs to a description with the matching network.
+
+    Args:
+    - fusion_network (nn.Module): The fusion network.
+    - matching_network (nn.Module): The matching network.
+    - features (tensor): Object features.
+    - lang_feat (tensor): Language features.
+    - objectness_masks (tensor): Objectness masks.
+
+    Returns:
+    - tensor: Confidence scores.
     """
     # fuse
     features = torch.cat([features, lang_feat], dim=-1) # batch_size, num_proposals, 128 + lang_size
@@ -44,6 +65,18 @@ def fuse_objmask_match(
 
 
 def get_objectness_masks(data_dict: dict, detection_module: str):
+    """
+    Retrieve objectness masks from the detection branch.
+
+    Args:
+    - data_dict (dict): A dictionary containing:
+        - outputs (dict): if detection_module is 3detr
+        - objectness_scores (tensor): if detection_module is votenet
+    - detection_module (str): The detection module used. Either 3detr or votenet.
+
+    Returns:
+    - tensor: Objectness masks.
+    """
     assert detection_module in ["3detr", "votenet"], "detection_module must be either 3detr or votenet"
     if detection_module == "3detr":
         objectness_masks = torch.as_tensor(
@@ -66,6 +99,18 @@ def copy_paste(
     """
     Copy paste method to increase training difficulty.
     https://github.com/zlccccc/3DVG-Transformer/blob/main/models/match_module.py
+
+    Args:
+    - data_dict (dict): A dictionary containing:
+        - istrain (tensor): A tensor indicating whether the current batch is for training.
+        - random (tensor): A tensor indicating whether to apply copy paste.
+    - features (tensor): Object features.
+    - objectness_masks (tensor): Objectness masks.
+    - batchsize (int): Batch size.
+    - num_proposals (int): Number of box proposals.
+
+    Returns:
+    - tensor: Modified object features.
     """
 
     feature_modified = features.clone()

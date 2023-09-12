@@ -1,4 +1,5 @@
 import torch.nn as nn
+from argparse import Namespace
 
 from .utils import (
     copy_paste,
@@ -8,7 +9,20 @@ from .utils import (
 )
 
 class VTransMatchModule(nn.Module):
-    def __init__(self, args, num_proposals=256, lang_size=256, hidden_size=128):
+    def __init__(
+            self, 
+            args: Namespace, 
+            num_proposals: int = 256, 
+            lang_size: int = 256, 
+            hidden_size: int = 128
+        ) -> None:
+        """
+        Args:
+        - args: config file
+        - num_proposals: number of proposals
+        - lang_size: size of language embeddings
+        - hidden_size: size of hidden layer
+        """
         super().__init__() 
         self.args = args
         self.num_proposals = num_proposals
@@ -47,11 +61,15 @@ class VTransMatchModule(nn.Module):
 
     def forward(self, data_dict):
         """
+        Forward pass of the vanilla transformer matching module.
+
         Args:
-            xyz: (B,K,3)
-            features: (B,C,K)
+        - data_dict (dict): A dictionary containing:
+            - xyz: (B,K,3)
+            - features: (B,C,K)
         Returns:
-            scores: (B,num_proposal,2+3+NH*2+NS*4) 
+        - dict: Modified input dictionary containing the following keys:
+            - scores: (B,num_proposal,2+3+NH*2+NS*4) 
         """
 
         # unpack outputs from detection branch
@@ -64,13 +82,12 @@ class VTransMatchModule(nn.Module):
         
 
         if self.args.use_chunking:
-            batchsize, max_chunk_size = data_dict['ref_center_label_list'].shape[:2]
+            batchsize, chunk_size = data_dict['ref_center_label_list'].shape[:2]
         else:
             batchsize = data_dict['ref_center_label'].shape[0]
 
         
         if self.args.copy_paste:
-            # increase training difficulty by copy past method (https://github.com/zlccccc/3DVG-Transformer)
             features = copy_paste(
                 data_dict=data_dict,
                 features=features,
@@ -81,7 +98,7 @@ class VTransMatchModule(nn.Module):
 
         if self.args.use_chunking:
             # expand the features and objectness masks
-            features, objectness_masks = expand_object_features_mask(features, objectness_masks, max_chunk_size)
+            features, objectness_masks = expand_object_features_mask(features, objectness_masks, chunk_size)
 
         # fuse and match
         data_dict["cluster_ref"] = fuse_objmask_match(

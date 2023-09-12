@@ -44,7 +44,7 @@ def get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, split, config
         use_multiview=args.use_multiview,
         #chunking
         chunking = args.use_chunking,
-        max_chunk_size=args.lang_num_max,
+        chunk_size=args.lang_num_max,
         # language module
         lang_module = args.lang_module
     )
