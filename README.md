@@ -7,7 +7,7 @@
 
 For additional details, please see our paper:  
 "[3D Visual Grounding with Transformers](https://github.com/flo-stilz/3D-Visual-Grounding-with-Transformers/blob/lang-det/paper%20%26%20figures/final_submission_3D_visual_grounding_with_transformers.pdf)"  
-by [Stefan Frisch](https://github.com/ga92xug) and [Florian Stilz](https://github.com/flo-stilz/)
+by [Stefan Frisch](https://github.com/ga92xug) and [Florian Stilz](https://flo-stilz.github.io/)
 from the [Technical University of Munich](https://www.tum.de/en/). 
 
 ## Setup + Dataset
